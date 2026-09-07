@@ -6,6 +6,7 @@ import { resolveFlyingSiHua } from "../data/siHuaTable";
 import BirthForm from "./BirthForm";
 import BaziPanel from "./BaziPanel";
 import type { BirthInfo } from "../lib/birthInfo";
+import { calculateChart } from "../lib/calculateChart";
 
 // ============================================================
 // Design notes (read before extending):
@@ -99,7 +100,7 @@ function ToggleButton({
   );
 }
 
-export default function ZwdsChart({ chart }: { chart: ZwdsChartData }) {
+export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartData }) {
   const [hovered, setHovered] = useState<EarthlyBranch | null>(null);
   const [selected, setSelected] = useState<EarthlyBranch | null>(null);
   const active = hovered ?? selected;
@@ -110,6 +111,13 @@ export default function ZwdsChart({ chart }: { chart: ZwdsChartData }) {
   const [editing, setEditing] = useState(true);
   const [showBazi, setShowBazi] = useState(false);
   const [showMinor, setShowMinor] = useState(false);
+
+  // Once birth data exists the grid is computed; before that we render the
+  // fixture passed in as a prop so the layout is still visible.
+  const chart = useMemo(
+    () => (info ? calculateChart(info) : fallbackChart),
+    [info, fallbackChart]
+  );
 
   const palaceByBranch = useMemo(() => {
     const map = new Map<EarthlyBranch, Palace>();
