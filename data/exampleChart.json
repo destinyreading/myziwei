@@ -1,0 +1,131 @@
+{
+  "meta": {
+    "name": "Bambang Santosa",
+    "solarDate": "1975-07-17",
+    "solarTime": "06:23",
+    "lunarYear": "Yi-Mao (乙卯)",
+    "lunarMonth": 6,
+    "lunarDay": 9,
+    "isLeapMonth": false,
+    "gender": "male",
+    "fiveElementJu": "Metal 4 (金四局)",
+    "fiveElementNumber": 4
+  },
+  "lifePalaceBranch": "Chen",
+  "bodyPalaceBranch": "Xu",
+  "palaces": [
+    {
+      "branch": "Chen", "stem": "Geng", "name": "Life", "nameZh": "命宮",
+      "isBodyPalace": false, "ageRange": [4, 13],
+      "grid": { "row": 1, "col": 0 },
+      "stars": [
+        { "name": "Tai Yin", "nameZh": "太陰", "brightness": 5, "isMajor": true, "natalSiHua": "Ji" },
+        { "name": "Qing Yang", "nameZh": "擎羊", "brightness": null, "isMajor": false, "natalSiHua": null }
+      ]
+    },
+    {
+      "branch": "Mao", "stem": "Ji", "name": "Siblings", "nameZh": "兄弟宮",
+      "isBodyPalace": false, "ageRange": [14, 23],
+      "grid": { "row": 2, "col": 0 },
+      "stars": [
+        { "name": "Tian Fu", "nameZh": "天府", "brightness": 3, "isMajor": true, "natalSiHua": null },
+        { "name": "Lu Cun", "nameZh": "祿存", "brightness": null, "isMajor": false, "natalSiHua": null }
+      ]
+    },
+    {
+      "branch": "Yin", "stem": "Wu", "name": "Spouse", "nameZh": "夫妻宮",
+      "isBodyPalace": false, "ageRange": [24, 33],
+      "grid": { "row": 3, "col": 0 },
+      "stars": [
+        { "name": "Di Jie", "nameZh": "地劫", "brightness": null, "isMajor": false, "natalSiHua": null },
+        { "name": "Tuo Luo", "nameZh": "陀羅", "brightness": null, "isMajor": false, "natalSiHua": null }
+      ]
+    },
+    {
+      "branch": "Chou", "stem": "Ji", "name": "Children", "nameZh": "子女宮",
+      "isBodyPalace": false, "ageRange": [34, 43],
+      "grid": { "row": 3, "col": 1 },
+      "stars": [
+        { "name": "Zi Wei", "nameZh": "紫微", "brightness": 1, "isMajor": true, "natalSiHua": "Ke" },
+        { "name": "Po Jun", "nameZh": "破軍", "brightness": 2, "isMajor": true, "natalSiHua": null },
+        { "name": "Ling Xing", "nameZh": "鈴星", "brightness": null, "isMajor": false, "natalSiHua": null }
+      ]
+    },
+    {
+      "branch": "Zi", "stem": "Wu", "name": "Wealth", "nameZh": "財帛宮",
+      "isBodyPalace": false, "ageRange": [44, 53],
+      "grid": { "row": 3, "col": 2 },
+      "stars": [
+        { "name": "Tian Ji", "nameZh": "天機", "brightness": 1, "isMajor": true, "natalSiHua": "Lu" },
+        { "name": "Hong Luan", "nameZh": "紅鸞", "brightness": null, "isMajor": false, "natalSiHua": null },
+        { "name": "Tian Kui", "nameZh": "天魁", "brightness": null, "isMajor": false, "natalSiHua": null },
+        { "name": "Huo Xing", "nameZh": "火星", "brightness": null, "isMajor": false, "natalSiHua": null }
+      ]
+    },
+    {
+      "branch": "Hai", "stem": "Ding", "name": "Health", "nameZh": "疾厄宮",
+      "isBodyPalace": false, "ageRange": [54, 63],
+      "grid": { "row": 3, "col": 3 },
+      "stars": []
+    },
+    {
+      "branch": "Xu", "stem": "Bing", "name": "Travel", "nameZh": "遷移宮",
+      "isBodyPalace": true, "ageRange": [64, 73],
+      "grid": { "row": 2, "col": 3 },
+      "stars": [
+        { "name": "Tai Yang", "nameZh": "太陽", "brightness": 5, "isMajor": true, "natalSiHua": null }
+      ]
+    },
+    {
+      "branch": "You", "stem": "Yi", "name": "Friends", "nameZh": "交友宮",
+      "isBodyPalace": false, "ageRange": [74, 83],
+      "grid": { "row": 1, "col": 3 },
+      "stars": [
+        { "name": "Wu Qu", "nameZh": "武曲", "brightness": 4, "isMajor": true, "natalSiHua": null },
+        { "name": "Qi Sha", "nameZh": "七殺", "brightness": 2, "isMajor": true, "natalSiHua": null },
+        { "name": "Zuo Fu", "nameZh": "左輔", "brightness": null, "isMajor": false, "natalSiHua": null }
+      ]
+    },
+    {
+      "branch": "Shen", "stem": "Jia", "name": "Career", "nameZh": "官祿宮",
+      "isBodyPalace": false, "ageRange": [84, 93],
+      "grid": { "row": 0, "col": 3 },
+      "stars": [
+        { "name": "Tian Tong", "nameZh": "天同", "brightness": 2, "isMajor": true, "natalSiHua": null },
+        { "name": "Tian Liang", "nameZh": "天梁", "brightness": 5, "isMajor": true, "natalSiHua": "Quan" },
+        { "name": "Tian Yue", "nameZh": "天鉞", "brightness": null, "isMajor": false, "natalSiHua": null },
+        { "name": "Di Kong", "nameZh": "地空", "brightness": null, "isMajor": false, "natalSiHua": null }
+      ]
+    },
+    {
+      "branch": "Wei", "stem": "Gui", "name": "Property", "nameZh": "田宅宮",
+      "isBodyPalace": false, "ageRange": [94, 103],
+      "grid": { "row": 0, "col": 2 },
+      "stars": [
+        { "name": "Tian Xiang", "nameZh": "天相", "brightness": 3, "isMajor": true, "natalSiHua": null },
+        { "name": "Wen Chang", "nameZh": "文昌", "brightness": null, "isMajor": false, "natalSiHua": null },
+        { "name": "Wen Qu", "nameZh": "文曲", "brightness": null, "isMajor": false, "natalSiHua": null }
+      ]
+    },
+    {
+      "branch": "Wu", "stem": "Ren", "name": "Happiness", "nameZh": "福德宮",
+      "isBodyPalace": false, "ageRange": [104, 113],
+      "grid": { "row": 0, "col": 1 },
+      "stars": [
+        { "name": "Ju Men", "nameZh": "巨門", "brightness": 2, "isMajor": true, "natalSiHua": null },
+        { "name": "Tian Xi", "nameZh": "天喜", "brightness": null, "isMajor": false, "natalSiHua": null }
+      ]
+    },
+    {
+      "branch": "Si", "stem": "Xin", "name": "Parents", "nameZh": "父母宮",
+      "isBodyPalace": false, "ageRange": [114, 123],
+      "grid": { "row": 0, "col": 0 },
+      "stars": [
+        { "name": "Lian Zhen", "nameZh": "廉貞", "brightness": 5, "isMajor": true, "natalSiHua": null },
+        { "name": "Tan Lang", "nameZh": "貪狼", "brightness": 5, "isMajor": true, "natalSiHua": null },
+        { "name": "You Bi", "nameZh": "右弼", "brightness": null, "isMajor": false, "natalSiHua": null },
+        { "name": "Tian Ma", "nameZh": "天馬", "brightness": null, "isMajor": false, "natalSiHua": null }
+      ]
+    }
+  ]
+}
