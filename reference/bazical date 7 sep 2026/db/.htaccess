@@ -1,0 +1,3 @@
+# Block all access to database folder
+Order Deny,Allow
+Deny from all

@@ -1,6 +1,43 @@
-node_modules
-.next
-.env*.local
-.DS_Store
+# ── Dependencies ─────────────────────────────────────────────
+/node_modules
+/.pnp
+.pnp.js
+
+# ── Next.js build output ─────────────────────────────────────
+/.next/
+/out/
+/build
+next-env.d.ts
+
+# ── Environment / secrets ────────────────────────────────────
+.env
+.env.*
+!.env.example
 *.pem
+
+# ── Logs & debug ─────────────────────────────────────────────
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# ── Editor / OS junk ─────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Deployment ───────────────────────────────────────────────
+.vercel
+
+# ── Reference: kalkulator Ba Zi PHP (bahan acuan, bukan bagian app) ──
+# Kode PHP-nya tetap ikut ter-commit sebagai acuan, tapi dependensi
+# Composer, database, dan aset berat tidak perlu masuk repo.
+# config.php berisi kredensial admin aplikasi bazical — jangan pernah di-commit.
+reference/**/config.php
+reference/**/vendor/
+reference/**/composer.phar
+reference/**/db/*.db
+reference/**/assets/
+reference/**/favicon.png

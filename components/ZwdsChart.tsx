@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react";
 import type { EarthlyBranch, Palace, ZwdsChart as ZwdsChartData } from "../types/chart";
 import { resolveFlyingSiHua } from "../data/siHuaTable";
+import BirthForm from "./BirthForm";
+import BaziPanel from "./BaziPanel";
+import type { BirthInfo } from "../lib/birthInfo";
 
 // ============================================================
 // Design notes (read before extending):
@@ -62,10 +65,51 @@ function BrightnessDots({ level }: { level: 1 | 2 | 3 | 4 | 5 | null }) {
   );
 }
 
+function ToggleButton({
+  active,
+  onClick,
+  disabled,
+  title,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-pressed={active}
+      className={[
+        "rounded border px-2 py-1 text-[11px] transition-colors",
+        disabled
+          ? "cursor-not-allowed border-neutral-200 bg-neutral-50 text-neutral-300"
+          : active
+          ? "border-neutral-800 bg-neutral-800 text-white"
+          : "border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50",
+      ].join(" ")}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function ZwdsChart({ chart }: { chart: ZwdsChartData }) {
   const [hovered, setHovered] = useState<EarthlyBranch | null>(null);
   const [selected, setSelected] = useState<EarthlyBranch | null>(null);
   const active = hovered ?? selected;
+
+  // Birth input + derived lunar/Ba Zi data. `info === null` means the center
+  // block shows the input form; generating fills it in.
+  const [info, setInfo] = useState<BirthInfo | null>(null);
+  const [editing, setEditing] = useState(true);
+  const [showBazi, setShowBazi] = useState(false);
+  const [showMinor, setShowMinor] = useState(false);
 
   const palaceByBranch = useMemo(() => {
     const map = new Map<EarthlyBranch, Palace>();
@@ -103,14 +147,29 @@ export default function ZwdsChart({ chart }: { chart: ZwdsChartData }) {
 
   return (
     <div className="w-full max-w-2xl mx-auto select-none">
-      {/* legend */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-[11px] text-neutral-500">
-        {(["lu", "quan", "ke", "ji"] as const).map((k) => (
-          <span key={k} className="inline-flex items-center gap-1">
-            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: HUA_COLOR[k] }} />
-            {HUA_LABEL[k]}
-          </span>
-        ))}
+      {/* legend + view toggles */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-neutral-500">
+          {(["lu", "quan", "ke", "ji"] as const).map((k) => (
+            <span key={k} className="inline-flex items-center gap-1">
+              <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: HUA_COLOR[k] }} />
+              {HUA_LABEL[k]}
+            </span>
+          ))}
+        </div>
+        <div className="flex gap-1.5">
+          <ToggleButton
+            active={showBazi}
+            onClick={() => setShowBazi((v) => !v)}
+            disabled={!info}
+            title={info ? undefined : "Generate dulu untuk melihat Ba Zi"}
+          >
+            Show Ba Zi
+          </ToggleButton>
+          <ToggleButton active={showMinor} onClick={() => setShowMinor((v) => !v)}>
+            Show Minor Star
+          </ToggleButton>
+        </div>
       </div>
 
       {/* grid + svg overlay */}
@@ -139,8 +198,15 @@ export default function ZwdsChart({ chart }: { chart: ZwdsChartData }) {
                 {p.branch} · {p.ageRange[0]}-{p.ageRange[1]}
               </div>
               <div className="mt-1 space-y-0.5 w-full">
-                {p.stars.filter((s) => s.isMajor).map((s) => (
-                  <div key={s.name} className="text-[10px] leading-tight text-neutral-700 truncate">
+                {p.stars.filter((s) => s.isMajor || showMinor).map((s) => (
+                  <div
+                    key={s.name}
+                    className={
+                      s.isMajor
+                        ? "text-[10px] leading-tight text-neutral-700 truncate"
+                        : "text-[9px] leading-tight text-neutral-400 truncate"
+                    }
+                  >
                     {s.nameZh}
                     <BrightnessDots level={s.brightness} />
                     {s.natalSiHua && (
@@ -160,16 +226,51 @@ export default function ZwdsChart({ chart }: { chart: ZwdsChartData }) {
           {/* center info panel spans the 2x2 middle block */}
           <div
             style={{ gridRow: "2 / span 2", gridColumn: "2 / span 2" }}
-            className="flex flex-col items-center justify-center text-center p-2 bg-neutral-50 border border-neutral-200"
+            className="flex flex-col items-center justify-center overflow-y-auto text-center p-2 bg-neutral-50 border border-neutral-200"
           >
             {!activePalace ? (
-              <>
-                <div className="text-xs font-medium text-neutral-700">{chart.meta.name}</div>
-                <div className="text-[10px] text-neutral-500 mt-1">{chart.meta.solarDate} · {chart.meta.solarTime}</div>
-                <div className="text-[10px] text-neutral-500">{chart.meta.lunarYear}</div>
-                <div className="text-[10px] text-neutral-500">{chart.meta.fiveElementJu}</div>
-                <div className="text-[9px] text-neutral-400 mt-2">Tap a palace to see its flying Si Hua</div>
-              </>
+              !info || editing ? (
+                <BirthForm
+                  defaults={
+                    info
+                      ? { name: info.name, date: info.solarDate, time: info.solarTime, gender: info.gender }
+                      : { name: chart.meta.name, date: chart.meta.solarDate, time: chart.meta.solarTime, gender: chart.meta.gender }
+                  }
+                  onGenerate={(next) => {
+                    setInfo(next);
+                    setEditing(false);
+                  }}
+                />
+              ) : showBazi ? (
+                <>
+                  <BaziPanel info={info} compact />
+                  <button
+                    type="button"
+                    onClick={() => setEditing(true)}
+                    className="mt-1.5 text-[9px] text-neutral-400 underline hover:text-neutral-600"
+                  >
+                    Ubah data
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="text-xs font-medium text-neutral-700 truncate max-w-full">{info.name}</div>
+                  <div className="text-[10px] text-neutral-500 mt-1">{info.solarDate} · {info.solarTime}</div>
+                  <div className="text-[10px] text-neutral-500">{info.lunarText}</div>
+                  <div className="text-[10px] text-neutral-500">
+                    {info.bazi.pillars.year.tg}{info.bazi.pillars.year.dz} · {info.zodiac} ·{" "}
+                    {info.gender === "male" ? "Pria" : "Wanita"}
+                  </div>
+                  <div className="text-[9px] text-neutral-400 mt-2">Tap a palace to see its flying Si Hua</div>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(true)}
+                    className="mt-1 text-[9px] text-neutral-400 underline hover:text-neutral-600"
+                  >
+                    Ubah data
+                  </button>
+                </>
+              )
             ) : (
               <>
                 <div className="text-sm font-medium text-neutral-800">{activePalace.nameZh} {activePalace.name}</div>
@@ -227,6 +328,9 @@ export default function ZwdsChart({ chart }: { chart: ZwdsChartData }) {
           </svg>
         )}
       </div>
+
+      {/* Ba Zi (four pillars) — toggled by "Show Ba Zi" */}
+      {showBazi && info && <BaziPanel info={info} />}
 
       {/* detail panel — flows normally below the grid on every screen size,
           so it works identically on mobile without fixed positioning. */}

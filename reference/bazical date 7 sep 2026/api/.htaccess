@@ -1,0 +1,31 @@
+Options -Indexes
+
+<Files "calculate.php">
+    Order Allow,Deny
+    Allow from all
+</Files>
+
+<Files "charts.php">
+    Order Allow,Deny
+    Allow from all
+</Files>
+
+<Files "announcements.php">
+    Order Allow,Deny
+    Allow from all
+</Files>
+
+<Files "public_announcements.php">
+    Order Allow,Deny
+    Allow from all
+</Files>
+
+<Files "calculate_core.php">
+    Order Deny,Allow
+    Deny from all
+</Files>
+
+<FilesMatch "^(?!calculate\.php$|charts\.php$|announcements\.php$|public_announcements\.php$).*\.php$">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>
