@@ -260,9 +260,10 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
       {/* grid + svg overlay */}
       {/* Square from `sm` up. On narrow screens the pinyin sits on its own
           line, so a square grid clips the 4th/5th star out of a busy palace —
-          give it a taller fixed box instead. The Si Hua overlay uses
-          preserveAspectRatio="none", so non-square is fine. */}
-      <div ref={gridRef} className="relative w-full h-[36rem] sm:h-auto sm:aspect-square border border-neutral-300">
+          give it a taller box instead, taller again once minor stars are on
+          (a busy palace then holds 5 two-line entries). The Si Hua overlay is
+          measured in pixels, so a non-square grid is fine. */}
+      <div ref={gridRef} className={`relative w-full ${showMinor ? "h-[46rem]" : "h-[34rem]"} sm:h-auto sm:aspect-square border border-neutral-300`}>
         <div className="absolute inset-0 grid grid-cols-4 grid-rows-4">
           {chart.palaces.map((p) => (
             <button
