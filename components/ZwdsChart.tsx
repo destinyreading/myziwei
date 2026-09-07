@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { EarthlyBranch, Palace, ZwdsChart as ZwdsChartData } from "../types/chart";
 import { resolveFlyingSiHua } from "../data/siHuaTable";
 import BirthForm from "./BirthForm";
@@ -119,6 +119,56 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     [info, fallbackChart]
   );
 
+  // ── Star anchors ────────────────────────────────────────────────────────
+  // Si Hua lines must land on the STAR that transforms, not on the middle of
+  // its palace: two transformations pointing at the same palace would other-
+  // wise be drawn as one overlapping line. We measure each rendered star row
+  // and draw in pixel space.
+  const gridRef = useRef<HTMLDivElement>(null);
+  const starRefs = useRef(new Map<string, HTMLElement>());
+  const [geom, setGeom] = useState<{
+    w: number;
+    h: number;
+    stars: Record<string, { x: number; y: number; left: number; right: number }>;
+  } | null>(null);
+
+  const measure = useCallback(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    const stars: Record<string, { x: number; y: number; left: number; right: number }> = {};
+    starRefs.current.forEach((node, name) => {
+      const r = node.getBoundingClientRect();
+      // Rounded so repeat measurements of an unchanged layout compare equal.
+      stars[name] = {
+        x: Math.round(r.left - box.left + r.width / 2),
+        y: Math.round(r.top - box.top + r.height / 2),
+        left: Math.round(r.left - box.left),
+        right: Math.round(r.right - box.left),
+      };
+    });
+    // Bail out when nothing moved, so a ResizeObserver burst does not
+    // re-render the chart for every intermediate pixel.
+    setGeom((prev) => {
+      const w = Math.round(box.width);
+      const h = Math.round(box.height);
+      if (
+        prev &&
+        prev.w === w &&
+        prev.h === h &&
+        Object.keys(prev.stars).length === Object.keys(stars).length &&
+        Object.entries(stars).every(([n, v]) => {
+          const q = prev.stars[n];
+          return q && q.x === v.x && q.y === v.y && q.left === v.left && q.right === v.right;
+        })
+      ) {
+        return prev;
+      }
+      return { w, h, stars };
+    });
+  }, []);
+
   const palaceByBranch = useMemo(() => {
     const map = new Map<EarthlyBranch, Palace>();
     chart.palaces.forEach((p) => map.set(p.branch, p));
@@ -148,6 +198,22 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
 
   const activePalace = active ? palaceByBranch.get(active) ?? null : null;
 
+  // Measure only when something that moves the stars changes. Running this
+  // after EVERY render is what caused an update loop: setGeom re-renders, the
+  // effect fires again, forever. Size changes are covered by the observer
+  // below instead.
+  useLayoutEffect(() => {
+    measure();
+  }, [measure, chart, showMinor, showBazi, editing, info, activePalace?.branch]);
+
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measure]);
+
   const flying = useMemo(() => {
     if (!activePalace) return null;
     return resolveFlyingSiHua(activePalace.stem, (starName) => {
@@ -171,6 +237,10 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
               {HUA_LABEL[k]}
             </span>
           ))}
+          <span className="inline-flex items-center gap-1">
+            <span className="rounded-sm border border-neutral-400 px-[2px] text-[9px] leading-[1.4]">自X</span>
+            自化 self-transform
+          </span>
         </div>
         <div className="flex gap-1.5">
           <ToggleButton
@@ -192,7 +262,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
           line, so a square grid clips the 4th/5th star out of a busy palace —
           give it a taller fixed box instead. The Si Hua overlay uses
           preserveAspectRatio="none", so non-square is fine. */}
-      <div className="relative w-full h-[36rem] sm:h-auto sm:aspect-square border border-neutral-300">
+      <div ref={gridRef} className="relative w-full h-[36rem] sm:h-auto sm:aspect-square border border-neutral-300">
         <div className="absolute inset-0 grid grid-cols-4 grid-rows-4">
           {chart.palaces.map((p) => (
             <button
@@ -224,6 +294,10 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                 {p.stars.filter((s) => s.isMajor || showMinor).map((s) => (
                   <div
                     key={s.name}
+                    ref={(el) => {
+                      if (el) starRefs.current.set(s.name, el);
+                      else starRefs.current.delete(s.name);
+                    }}
                     className={
                       // Narrow screens stack the pinyin under the Chinese name;
                       // from `sm` up there is room for one line per star.
@@ -245,6 +319,18 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                             {s.natalSiHua}
                           </span>
                         )}
+                        {s.selfSiHua && (
+                          <span
+                            className="ml-1 text-[8px] font-medium rounded-sm border px-[2px] leading-[1.4]"
+                            style={{
+                              color: HUA_COLOR[s.selfSiHua.toLowerCase() as "lu" | "quan" | "ke" | "ji"],
+                              borderColor: HUA_COLOR[s.selfSiHua.toLowerCase() as "lu" | "quan" | "ke" | "ji"],
+                            }}
+                            title={`自化 ${s.selfSiHua} — transformed by this palace's own stem`}
+                          >
+                            自{s.selfSiHua}
+                          </span>
+                        )}
                       </span>
                     </span>
                     <span
@@ -263,6 +349,18 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                           style={{ color: HUA_COLOR[s.natalSiHua.toLowerCase() as "lu" | "quan" | "ke" | "ji"] }}
                         >
                           {s.natalSiHua}
+                        </span>
+                      )}
+                      {s.selfSiHua && (
+                        <span
+                          className="ml-1 text-[8px] font-medium rounded-sm border px-[2px] leading-[1.4]"
+                          style={{
+                            color: HUA_COLOR[s.selfSiHua.toLowerCase() as "lu" | "quan" | "ke" | "ji"],
+                            borderColor: HUA_COLOR[s.selfSiHua.toLowerCase() as "lu" | "quan" | "ke" | "ji"],
+                          }}
+                          title={`自化 ${s.selfSiHua} — transformed by this palace's own stem`}
+                        >
+                          自{s.selfSiHua}
                         </span>
                       )}
                     </span>
@@ -329,48 +427,95 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
           </div>
         </div>
 
-        {/* SVG overlay for flying Si Hua lines — coordinate math matches the
-            4x4 grid exactly because the grid has no gaps (border-only). */}
-        {activePalace && flying && (
+        {/* SVG overlay for flying Si Hua lines. Drawn in PIXEL space (viewBox
+            matches the measured box) so each line can end on its own star row.
+            Falls back to the palace centre when the target star is not
+            rendered — e.g. a minor star while "Show Minor Star" is off. */}
+        {activePalace && flying && geom && (
           <svg
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
+            viewBox={`0 0 ${geom.w} ${geom.h}`}
             className="absolute inset-0 w-full h-full pointer-events-none"
           >
+            <defs>
+              {(["lu", "quan", "ke", "ji"] as const).map((k) => (
+                <marker
+                  key={k}
+                  id={`hua-arrow-${k}`}
+                  viewBox="0 0 10 10"
+                  refX="9"
+                  refY="5"
+                  markerWidth="5"
+                  markerHeight="5"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill={HUA_COLOR[k]} />
+                </marker>
+              ))}
+            </defs>
+
             {(["lu", "quan", "ke", "ji"] as const).map((k) => {
               const target = flying[k];
               if (!target.palace) return null; // star not placed in this chart
               const targetBranch = branchByName.get(target.palace);
               if (!targetBranch) return null;
               const targetPalace = palaceByBranch.get(targetBranch)!;
-              const from = centerOf(activePalace.grid.row, activePalace.grid.col);
+
+              const cellW = geom.w / 4;
+              const cellH = geom.h / 4;
+              const from = {
+                x: (activePalace.grid.col + 0.5) * cellW,
+                y: (activePalace.grid.row + 0.5) * cellH,
+              };
+              const star = geom.stars[target.star];
 
               if (targetBranch === activePalace.branch) {
-                // self-transformation (自化) — dashed ring around the source cell
-                return (
+                // 自化 self-transformation: ring the star itself when we can
+                // see it, otherwise ring the palace.
+                return star ? (
+                  <ellipse
+                    key={k}
+                    cx={star.x}
+                    cy={star.y}
+                    rx={(star.right - star.left) / 2 + 3}
+                    ry={9}
+                    fill="none"
+                    stroke={HUA_COLOR[k]}
+                    strokeWidth={1.2}
+                    strokeDasharray="4 3"
+                  />
+                ) : (
                   <circle
                     key={k}
                     cx={from.x}
                     cy={from.y}
-                    r={9}
+                    r={Math.min(cellW, cellH) * 0.35}
                     fill="none"
                     stroke={HUA_COLOR[k]}
-                    strokeWidth={0.6}
-                    strokeDasharray="2 1.5"
-                    vectorEffect="non-scaling-stroke"
+                    strokeWidth={1.2}
+                    strokeDasharray="4 3"
                   />
                 );
               }
 
-              const to = centerOf(targetPalace.grid.row, targetPalace.grid.col);
+              // Land on the near edge of the star row so the arrowhead points
+              // at the star instead of covering its name.
+              const to = star
+                ? { x: from.x <= star.x ? star.left - 3 : star.right + 3, y: star.y }
+                : {
+                    x: (targetPalace.grid.col + 0.5) * cellW,
+                    y: (targetPalace.grid.row + 0.5) * cellH,
+                  };
+
               return (
                 <line
                   key={k}
-                  x1={from.x} y1={from.y}
-                  x2={to.x} y2={to.y}
+                  x1={from.x}
+                  y1={from.y}
+                  x2={to.x}
+                  y2={to.y}
                   stroke={HUA_COLOR[k]}
-                  strokeWidth={0.6}
-                  vectorEffect="non-scaling-stroke"
+                  strokeWidth={1.2}
+                  markerEnd={`url(#hua-arrow-${k})`}
                 />
               );
             })}

@@ -280,6 +280,23 @@ export function calculateChart(info: BirthInfo, options: ChartOptions = {}): Zwd
     };
   });
 
+  // ── 10. 自化 self-transformation ────────────────────────────────────────
+  // Each palace's OWN stem transforms four stars; when such a star happens to
+  // sit in that same palace, it self-transforms. Computed here rather than in
+  // the UI so it travels with the chart data.
+  palaces.forEach((p) => {
+    const set = SI_HUA_TABLE[p.stem];
+    const selfMap: Record<string, SiHuaType> = {
+      [set.lu]: "Lu",
+      [set.quan]: "Quan",
+      [options.renKeTianFu && p.stem === "Ren" ? "Tian Fu" : set.ke]: "Ke",
+      [set.ji]: "Ji",
+    };
+    p.stars.forEach((s) => {
+      s.selfSiHua = selfMap[s.name] ?? null;
+    });
+  });
+
   // Da Xian ranges follow the direction, not the palace order: when the chart
   // runs forward, the decade after Ming Gong sits at branch+1 (Parents), not
   // at branch-1 (Siblings).

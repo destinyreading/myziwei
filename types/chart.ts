@@ -24,6 +24,12 @@ export interface StarPlacement {
   brightness: 1 | 2 | 3 | 4 | 5 | null; // 1 = brightest, 5 = dimmest, null = minor star w/o rating
   isMajor: boolean;           // true for the 14 major stars, false for auxiliary/minor stars
   natalSiHua: SiHuaType | null; // set if THIS star carries a natal transformation in this chart
+  /**
+   * 自化 self-transformation: set when this star is transformed by the stem of
+   * the very palace it sits in. Independent of the natal transformation — a
+   * star can carry both (e.g. natal Ji plus self Ke).
+   */
+  selfSiHua?: SiHuaType | null;
 }
 
 export interface Palace {
