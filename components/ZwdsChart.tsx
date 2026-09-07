@@ -132,6 +132,13 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     return map;
   }, [chart]);
 
+  // star name -> Chinese name, so the Si Hua list can show both scripts
+  const STAR_ZH_BY_NAME = useMemo(() => {
+    const map = new Map<string, string>();
+    chart.palaces.forEach((p) => p.stars.forEach((s) => map.set(s.name, s.nameZh)));
+    return map;
+  }, [chart]);
+
   // name -> branch, needed to draw lines (we key palaces by branch on the grid)
   const branchByName = useMemo(() => {
     const map = new Map<string, EarthlyBranch>();
@@ -181,7 +188,11 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
       </div>
 
       {/* grid + svg overlay */}
-      <div className="relative w-full aspect-square border border-neutral-300">
+      {/* Square from `sm` up. On narrow screens the pinyin sits on its own
+          line, so a square grid clips the 4th/5th star out of a busy palace —
+          give it a taller fixed box instead. The Si Hua overlay uses
+          preserveAspectRatio="none", so non-square is fine. */}
+      <div className="relative w-full h-[36rem] sm:h-auto sm:aspect-square border border-neutral-300">
         <div className="absolute inset-0 grid grid-cols-4 grid-rows-4">
           {chart.palaces.map((p) => (
             <button
@@ -206,25 +217,55 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                 {p.branch} · {p.ageRange[0]}-{p.ageRange[1]}
               </div>
               <div className="mt-1 space-y-0.5 w-full">
+                {/* One star = one line. The pinyin is the only part allowed to
+                    shrink/truncate; brightness and the Si Hua tag must never
+                    wrap onto their own line, or a narrow palace turns into a
+                    ladder and pushes later stars out of the box. */}
                 {p.stars.filter((s) => s.isMajor || showMinor).map((s) => (
                   <div
                     key={s.name}
                     className={
-                      s.isMajor
-                        ? "text-[10px] leading-tight text-neutral-700 truncate"
-                        : "text-[9px] leading-tight text-neutral-400 truncate"
+                      // Narrow screens stack the pinyin under the Chinese name;
+                      // from `sm` up there is room for one line per star.
+                      "flex flex-col sm:flex-row sm:items-baseline sm:gap-1 " +
+                      (s.isMajor
+                        ? "text-[10px] leading-tight text-neutral-700"
+                        : "text-[9px] leading-tight text-neutral-400")
                     }
                   >
-                    {s.nameZh}
-                    <BrightnessDots level={s.brightness} />
-                    {s.natalSiHua && (
-                      <span
-                        className="ml-1 text-[9px] font-medium"
-                        style={{ color: HUA_COLOR[s.natalSiHua.toLowerCase() as "lu" | "quan" | "ke" | "ji"] }}
-                      >
-                        {s.natalSiHua}
+                    <span className="flex items-baseline gap-1 shrink-0">
+                      <span>{s.nameZh}</span>
+                      <span className="sm:hidden ml-auto flex items-baseline whitespace-nowrap">
+                        <BrightnessDots level={s.brightness} />
+                        {s.natalSiHua && (
+                          <span
+                            className="ml-1 text-[9px] font-medium"
+                            style={{ color: HUA_COLOR[s.natalSiHua.toLowerCase() as "lu" | "quan" | "ke" | "ji"] }}
+                          >
+                            {s.natalSiHua}
+                          </span>
+                        )}
                       </span>
-                    )}
+                    </span>
+                    <span
+                      className={
+                        "truncate " +
+                        (s.isMajor ? "text-[9px] text-neutral-500" : "text-[8px] text-neutral-400")
+                      }
+                    >
+                      {s.name}
+                    </span>
+                    <span className="hidden sm:flex ml-auto shrink-0 items-baseline whitespace-nowrap">
+                      <BrightnessDots level={s.brightness} />
+                      {s.natalSiHua && (
+                        <span
+                          className="ml-1 text-[9px] font-medium"
+                          style={{ color: HUA_COLOR[s.natalSiHua.toLowerCase() as "lu" | "quan" | "ke" | "ji"] }}
+                        >
+                          {s.natalSiHua}
+                        </span>
+                      )}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -358,7 +399,10 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     <span className="font-medium whitespace-nowrap" style={{ color: HUA_COLOR[k] }}>{HUA_LABEL[k]}</span>
                   </span>
                   <span className="inline-flex items-center gap-2 whitespace-nowrap">
-                    <span>{target.star}</span>
+                    <span>
+                      {STAR_ZH_BY_NAME.get(target.star) ?? ""}
+                      <span className="ml-1">{target.star}</span>
+                    </span>
                     <span className="text-neutral-400">→</span>
                     <span>
                       {target.palace ?? "not placed in chart"}
