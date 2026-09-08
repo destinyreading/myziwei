@@ -134,6 +134,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   const [showBazi, setShowBazi] = useState(false);
   const [showMinor, setShowMinor] = useState(false);
   const [showClash, setShowClash] = useState(false);
+  const [showSanFang, setShowSanFang] = useState(false);
   const [showMisc, setShowMisc] = useState(false);
 
   // Once birth data exists the grid is computed; before that we render the
@@ -222,6 +223,15 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
 
   const activePalace = active ? palaceByBranch.get(active) ?? null : null;
 
+  // 三方四正 of the active palace: itself, the two trine palaces (±4), and the
+  // one opposite (+6). Only used when the toggle is on.
+  const sanFang = useMemo(() => {
+    if (!showSanFang || !activePalace) return null;
+    const i = BRANCH_ORDER.indexOf(activePalace.branch);
+    const at = (n: number) => BRANCH_ORDER[((i + n) % 12 + 12) % 12];
+    return { trine: new Set([at(4), at(8)]), opposite: at(6) };
+  }, [showSanFang, activePalace]);
+
   // Measure only when something that moves the stars changes. Running this
   // after EVERY render is what caused an update loop: setGeom re-renders, the
   // effect fires again, forever. Size changes are covered by the observer
@@ -307,6 +317,13 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
             Show Misc Star
           </ToggleButton>
           <ToggleButton
+            active={showSanFang}
+            onClick={() => setShowSanFang((v) => !v)}
+            title="三方四正 — the palace, its two trine palaces, and the one opposite"
+          >
+            三方四正
+          </ToggleButton>
+          <ToggleButton
             active={showClash}
             onClick={() => setShowClash((v) => !v)}
             title="沖: the palace struck by Hua Ji also afflicts its opposite palace"
@@ -335,7 +352,13 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
               className={[
                 "flex flex-col items-start justify-start p-1 text-left border border-neutral-200",
                 "min-h-11 overflow-hidden transition-colors",
-                active === p.branch ? "bg-amber-50" : "bg-white hover:bg-neutral-50",
+                active === p.branch
+                  ? sanFang ? "bg-amber-100" : "bg-amber-50"
+                  : sanFang?.trine.has(p.branch)
+                    ? "bg-amber-50"
+                    : sanFang?.opposite === p.branch
+                      ? "bg-amber-50/60"
+                      : "bg-white hover:bg-neutral-50",
                 p.isBodyPalace ? "ring-1 ring-inset ring-neutral-400" : "",
               ].join(" ")}
             >
@@ -343,19 +366,8 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                 <span className="text-sm font-medium text-neutral-800">{p.nameZh.charAt(0)}</span>
                 <span className="text-[10px] text-neutral-400 truncate">{p.name}</span>
               </div>
-              <div className="flex w-full items-baseline justify-between gap-1 text-[9px] text-neutral-400">
-                <span>{p.branch} · {p.ageRange[0]}-{p.ageRange[1]}</span>
-                {/* 長生十二神 — one stage per palace, so it sits on the header
-                    line rather than competing with the star list. */}
-                {p.changSheng && (
-                  <span
-                    className="flex shrink-0 items-baseline gap-1 whitespace-nowrap text-neutral-400"
-                    title="長生十二神 — 12 life stages"
-                  >
-                    <span>{p.changSheng.nameZh}</span>
-                    <span className="text-[8px]">{p.changSheng.name}</span>
-                  </span>
-                )}
+              <div className="text-[9px] text-neutral-400">
+                {p.branch} · {p.ageRange[0]}-{p.ageRange[1]}
               </div>
               <div className="mt-1 space-y-0.5 w-full">
                 {/* One star = one line. The pinyin is the only part allowed to
@@ -508,15 +520,6 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   <div className="text-xs font-medium text-neutral-700 truncate max-w-full">{info.name}</div>
                   <div className="text-[10px] text-neutral-500 mt-1">{info.solarDate} · {info.solarTime}</div>
                   <div className="text-[10px] text-neutral-500">{info.lunarText}</div>
-                  {/* Same lunar date in plain numerals — day / month / year,
-                      the order the reference calculators use. */}
-                  <div
-                    className="text-[10px] text-neutral-500"
-                    title="Tanggal lunar: hari / bulan / tahun"
-                  >
-                    Lunar: {info.lunarDay} / {info.lunarMonth}
-                    {info.isLeapMonth && <span className="text-amber-700"> (闰)</span>} / {info.lunarYear}
-                  </div>
                   <div className="text-[10px] text-neutral-500">
                     {info.bazi.pillars.year.tg}{info.bazi.pillars.year.dz} · {info.zodiac} ·{" "}
                     {info.gender === "male" ? "Pria" : "Wanita"}
