@@ -57,7 +57,9 @@ export function computeBirthInfo(input: BirthInput): BirthInfo {
   const rawMonth: number = lunar.getMonth(); // negative => leap month
 
   return {
-    name: input.name.trim() || "(tanpa nama)",
+    // No name given — the chart is the one generated for the moment the page
+    // was opened, so label it as that rather than "(tanpa nama)".
+    name: input.name.trim() || "Waktu saat ini",
     gender: input.gender,
     solarDate: input.date,
     solarTime: input.time,

@@ -141,6 +141,8 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   const [decadeStart, setDecadeStart] = useState<number | null>(null);
   /** Selected Liu Nian year; null = decade mode (years + ages in the footer). */
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  /** True while showing the chart auto-generated for the visitor's clock. */
+  const [isNow, setIsNow] = useState(false);
 
   // Auto-generate a chart for "now" as soon as the page opens, so a visitor
   // sees a real chart instead of an empty form. Done in an effect (not in
@@ -161,6 +163,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
         })
       );
       setEditing(false);
+      setIsNow(true);
     } catch {
       // out of the Jie Qi table's range, or similar — leave the form showing
     }
@@ -716,6 +719,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   onGenerate={(next) => {
                     setInfo(next);
                     setEditing(false);
+                    setIsNow(false);
                   }}
                 />
               ) : showBazi ? (
@@ -731,7 +735,13 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                 </>
               ) : (
                 <>
-                  <div className="text-xs font-medium text-neutral-700 truncate max-w-full">{info.name}</div>
+                  {/* An auto-generated chart is labelled by what it is — the
+                      chart for right now — rather than "(tanpa nama)", so a
+                      visitor understands it and knows to enter their own data
+                      below. */}
+                  <div className="text-xs font-medium text-neutral-700 truncate max-w-full">
+                    {isNow ? "Waktu saat ini" : info.name}
+                  </div>
                   <div className="text-[10px] text-neutral-500 mt-1">{info.solarDate} · {info.solarTime}</div>
                   <div className="text-[10px] text-neutral-500">{info.lunarText}</div>
                   {/* Same lunar date in plain numerals — day / month / year. */}
