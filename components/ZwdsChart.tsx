@@ -139,6 +139,8 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   const [todayYear, setTodayYear] = useState<number | null>(null);
   /** Age at which the selected Da Xian starts; null = follow "today". */
   const [decadeStart, setDecadeStart] = useState<number | null>(null);
+  /** Selected Liu Nian year; null = decade mode (years + ages in the footer). */
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
   // Auto-generate a chart for "now" as soon as the page opens, so a visitor
   // sees a real chart instead of an empty form. Done in an effect (not in
@@ -314,6 +316,32 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
 
     return { start, palace, years, names };
   }, [info, chart, decadeStart, lunarAgeNow]);
+
+  // ── 流年 ────────────────────────────────────────────────────────────────
+  // Picking a year turns the footer into month mode: 流年斗君 puts month 1 on
+  // (year branch − (lunar month − 1) + birth hour branch), months then run
+  // forward. The year's own branch carries 流年命宮, and the twelve annual
+  // palaces run anticlockwise from it, like the natal and decade rings.
+  const annual = useMemo(() => {
+    if (!info || selectedYear == null) return null;
+    const hour = info.bazi.pillars.hour?.dzIdx ?? 0;
+    const yearBranchIdx = ((selectedYear - 4) % 12 + 12) % 12;
+    const douJun =
+      ((yearBranchIdx - (info.lunarMonth - 1) + hour) % 12 + 12) % 12;
+
+    const months = new Map<EarthlyBranch, number>();
+    for (let m = 1; m <= 12; m++) {
+      months.set(BRANCH_ORDER[(douJun + m - 1) % 12], m);
+    }
+    const names = new Map<EarthlyBranch, string>();
+    chart.palaces.forEach((_, offset) => {
+      names.set(
+        BRANCH_ORDER[((yearBranchIdx - offset) % 12 + 12) % 12],
+        chart.palaces[offset].name
+      );
+    });
+    return { year: selectedYear, branch: BRANCH_ORDER[yearBranchIdx], months, names };
+  }, [info, selectedYear, chart]);
 
   const flying = useMemo(() => {
     if (!activePalace) return null;
@@ -578,11 +606,18 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
               <div className="mt-auto w-full pt-0.5 text-[8px] leading-tight text-neutral-400">
                 <div className="flex items-baseline justify-between gap-1 whitespace-nowrap">
                   <span />
-                  {activeDecade?.names.get(p.branch) && (
-                    <span className="shrink-0 text-rose-600" title="大限十二宮">
-                      D{activeDecade.names.get(p.branch)}
-                    </span>
-                  )}
+                  <span className="flex shrink-0 flex-col items-end leading-tight">
+                    {annual?.names.get(p.branch) && (
+                      <span className="text-violet-600" title="流年十二宮">
+                        A{annual.names.get(p.branch)}
+                      </span>
+                    )}
+                    {activeDecade?.names.get(p.branch) && (
+                      <span className="text-rose-600" title="大限十二宮">
+                        D{activeDecade.names.get(p.branch)}
+                      </span>
+                    )}
+                  </span>
                 </div>
 
                 <div className="mt-0.5 grid grid-cols-[auto_1fr_auto] items-center gap-x-1 border-t border-neutral-200 pt-0.5">
@@ -594,6 +629,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     onClick={(e) => {
                       e.stopPropagation();
                       setDecadeStart(p.ageRange[0]);
+                      setSelectedYear(null); // clicking a decade leaves year mode
                     }}
                     title={`Da Xian ${p.ageRange[0]}-${p.ageRange[1]} — klik untuk pilih dekade ini`}
                     className={[
@@ -605,17 +641,58 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   >
                     {p.ageRange[0]}-{p.ageRange[1]}
                   </span>
-                  <span className="text-right text-neutral-500">
-                    {activeDecade?.years.get(p.branch)?.year ?? ""}
-                  </span>
+                  {/* Decade mode: the Liu Nian year. Year mode: the lunar
+                      month that 流年斗君 puts on this palace. "M" is the LUNAR
+                      month, not January/February — hence the tooltip. */}
+                  {(() => {
+                    if (!annual) {
+                      const y = activeDecade?.years.get(p.branch);
+                      return (
+                        <span className="text-right text-neutral-500">{y?.year ?? ""}</span>
+                      );
+                    }
+                    const m = annual.months.get(p.branch);
+                    if (!m) return <span />;
+                    return (
+                      <span
+                        className="text-right text-neutral-500"
+                        title={`流月: bulan lunar ke-${m} tahun ${annual.year} (bukan bulan Masehi)`}
+                      >
+                        M{m}
+                      </span>
+                    );
+                  })()}
 
                   <span className="text-neutral-500">{p.branch}</span>
                   <span className="truncate text-center text-[9px] text-neutral-700">
                     {p.nameZh.charAt(0)} {p.name}
                   </span>
-                  <span className="text-right text-neutral-500">
-                    {activeDecade?.years.get(p.branch)?.age ?? ""}
-                  </span>
+                  {/* The year cell is clickable: it switches the chart into
+                      year mode. The age moves into its tooltip there. */}
+                  {(() => {
+                    const cell = activeDecade?.years.get(p.branch);
+                    if (!cell) return <span />;
+                    const isSel = annual?.year === cell.year;
+                    return (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedYear((y) => (y === cell.year ? null : cell.year));
+                        }}
+                        title={`${cell.year} — usia ${cell.age} (lunar). Klik untuk lihat bulanannya.`}
+                        className={[
+                          "cursor-pointer rounded px-0.5 text-right",
+                          isSel
+                            ? "bg-amber-200 font-medium text-neutral-800"
+                            : annual
+                              ? "text-neutral-400 hover:bg-neutral-200"
+                              : "text-neutral-500 hover:bg-neutral-200",
+                        ].join(" ")}
+                      >
+                        {annual ? cell.year : cell.age}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             </button>
