@@ -349,10 +349,11 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     line rather than competing with the star list. */}
                 {p.changSheng && (
                   <span
-                    className="shrink-0 text-neutral-400"
-                    title={`長生十二神: ${p.changSheng.name}`}
+                    className="flex shrink-0 items-baseline gap-1 whitespace-nowrap text-neutral-400"
+                    title="長生十二神 — 12 life stages"
                   >
-                    {p.changSheng.nameZh}
+                    <span>{p.changSheng.nameZh}</span>
+                    <span className="text-[8px]">{p.changSheng.name}</span>
                   </span>
                 )}
               </div>
