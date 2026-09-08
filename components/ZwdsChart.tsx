@@ -49,19 +49,31 @@ function centerOf(row: number, col: number) {
   return { x: ((col + 0.5) / 4) * 100, y: ((row + 0.5) / 4) * 100 };
 }
 
-// Renders a 1-5 dot brightness scale. ZWDS convention: 1 = brightest.
-function BrightnessDots({ level }: { level: 1 | 2 | 3 | 4 | 5 | null }) {
+// Brightness (廟旺得平陷) as ONE dot plus its number. The dot is colour-coded
+// on a gold-to-black ramp: 1 = brightest = gold, 5 = dimmest = black. Five
+// separate dots read as a rating bar and cost far more horizontal room in a
+// palace box, which is scarce.
+const BRIGHTNESS_COLOR: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: "#d4af37", // gold — 廟, brightest
+  2: "#a8862c",
+  3: "#7d5f22",
+  4: "#4a3a18",
+  5: "#1c1c1c", // black — 陷, dimmest
+};
+
+function BrightnessMark({ level }: { level: 1 | 2 | 3 | 4 | 5 | null }) {
   if (level === null) return null;
-  const filled = 6 - level; // brightness 1 -> 5 dots filled, 5 -> 1 dot filled
   return (
-    <span className="inline-flex gap-[1px] align-middle ml-1" aria-label={`brightness ${level}`}>
-      {Array.from({ length: 5 }, (_, i) => (
-        <span
-          key={i}
-          className="inline-block w-[3px] h-[3px] rounded-full"
-          style={{ backgroundColor: i < filled ? "#b8935a" : "#d8d0c0" }}
-        />
-      ))}
+    <span
+      className="inline-flex items-center gap-[2px] align-middle ml-1"
+      aria-label={`brightness ${level} of 5`}
+      title={`Brightness ${level}/5 — 1 = brightest`}
+    >
+      <span
+        className="inline-block w-[6px] h-[6px] rounded-full"
+        style={{ backgroundColor: BRIGHTNESS_COLOR[level] }}
+      />
+      <span className="text-[9px] leading-none text-neutral-500">{level}</span>
     </span>
   );
 }
@@ -241,6 +253,16 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
             <span className="rounded-sm border border-neutral-400 px-[2px] text-[9px] leading-[1.4]">自X</span>
             自化 self-transform
           </span>
+          <span className="inline-flex items-center gap-1">
+            {([1, 2, 3, 4, 5] as const).map((l) => (
+              <span
+                key={l}
+                className="inline-block w-[6px] h-[6px] rounded-full"
+                style={{ backgroundColor: BRIGHTNESS_COLOR[l] }}
+              />
+            ))}
+            <span className="ml-0.5">terang 1 (emas) → 5 (hitam)</span>
+          </span>
         </div>
         <div className="flex gap-1.5">
           <ToggleButton
@@ -310,8 +332,10 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   >
                     <span className="flex items-baseline gap-1 shrink-0">
                       <span>{s.nameZh}</span>
+                      <span className="sm:hidden">
+                        <BrightnessMark level={s.brightness} />
+                      </span>
                       <span className="sm:hidden ml-auto flex items-baseline whitespace-nowrap">
-                        <BrightnessDots level={s.brightness} />
                         {s.natalSiHua && (
                           <span
                             className="ml-1 text-[9px] font-medium"
@@ -342,8 +366,10 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     >
                       {s.name}
                     </span>
+                    <span className="hidden sm:inline-flex shrink-0">
+                      <BrightnessMark level={s.brightness} />
+                    </span>
                     <span className="hidden sm:flex ml-auto shrink-0 items-baseline whitespace-nowrap">
-                      <BrightnessDots level={s.brightness} />
                       {s.natalSiHua && (
                         <span
                           className="ml-1 text-[9px] font-medium"
@@ -382,7 +408,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   defaults={
                     info
                       ? { name: info.name, date: info.solarDate, time: info.solarTime, gender: info.gender }
-                      : { name: chart.meta.name, date: chart.meta.solarDate, time: chart.meta.solarTime, gender: chart.meta.gender }
+                      : { name: "" } // no birth data yet: BirthForm fills in "now"
                   }
                   onGenerate={(next) => {
                     setInfo(next);

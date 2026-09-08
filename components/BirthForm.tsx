@@ -1,7 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { computeBirthInfo, type BirthInfo } from "../lib/birthInfo";
+
+/** Local "now" as the two strings the date/time inputs expect. */
+function nowFields() {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return {
+    date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`,
+    time: `${p(d.getHours())}:${p(d.getMinutes())}`,
+  };
+}
 
 // Compact input form that lives inside the 2x2 center block of the chart grid.
 // Space is tight, so labels are inline-small and everything is a single column.
@@ -17,6 +27,19 @@ export default function BirthForm({
   const [time, setTime] = useState(defaults?.time ?? "");
   const [gender, setGender] = useState<"male" | "female">(defaults?.gender ?? "male");
   const [error, setError] = useState<string | null>(null);
+
+  // With no birth data supplied, start from the moment the page is opened.
+  // Done in an effect rather than in useState: `new Date()` during the server
+  // render would not match the client's clock and React would flag a
+  // hydration mismatch.
+  useEffect(() => {
+    if (defaults?.date || defaults?.time) return;
+    const now = nowFields();
+    setDate((d) => d || now.date);
+    setTime((t) => t || now.time);
+    // Only on mount: re-running would overwrite what the user is typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
