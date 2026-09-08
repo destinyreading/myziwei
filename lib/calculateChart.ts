@@ -77,25 +77,42 @@ const STAR_ZH: Record<string, string> = {
   "Huo Xing": "火星", "Ling Xing": "鈴星",
   "Di Kong": "地空", "Di Jie": "地劫",
   "Hong Luan": "紅鸞", "Tian Xi": "天喜", "Tian Ma": "天馬",
+  // misc tier
+  "San Tai": "三台", "Ba Zuo": "八座",
+  "En Guang": "恩光", "Tian Gui Star": "天貴",
+  "Tai Fu": "台輔", "Feng Gao": "封誥",
+  "Tian Xing": "天刑", "Tian Yao": "天姚",
+  "Tian Wu": "天巫", "Tian Yue Star": "天月", "Yin Sha": "陰煞", "Jie Shen": "解神",
+  "Tian Cai": "天才", "Tian Shou": "天壽",
+  "Tian Guan": "天官", "Tian Fu Star": "天福",
+  "Tian Ku": "天哭", "Tian Xu": "天虛",
+  "Long Chi": "龍池", "Feng Ge": "鳳閣",
+  "Gu Chen": "孤辰", "Gua Su": "寡宿",
+  "Fei Lian": "蜚廉", "Po Sui": "破碎",
+  "Hua Gai": "華蓋", "Xian Chi": "咸池",
+  "Tian Chu": "天廚", "Jie Lu": "截路", "Kong Wang": "空亡",
+  "Tian Kong": "天空", "Tian De": "天德", "Yue De": "月德",
+  "Xun Kong": "旬空",
 };
 
 // Brightness (廟旺得平陷 -> 1..5) per major star, indexed by branch 子..亥.
-// Schools differ on a handful of cells; this is the common table. If Bambang's
-// reference disagrees, this table is the single place to correct it.
+// Verified cell-by-cell against zwds-calculator.com over 14 charts covering
+// 紫微 in all twelve branches, i.e. every cell of this table:
+// Schools still differ on some cells; this table is the one place to fix them.
 const BRIGHTNESS: Record<string, (1 | 2 | 3 | 4 | 5)[]> = {
-  "Zi Wei":     [4, 1, 1, 2, 3, 2, 1, 1, 2, 4, 3, 2],
-  "Tian Ji":    [1, 5, 2, 2, 3, 4, 1, 5, 2, 2, 3, 4],
-  "Tai Yang":   [5, 5, 2, 1, 1, 2, 1, 3, 3, 4, 5, 5],
-  "Wu Qu":      [2, 1, 4, 3, 1, 4, 2, 1, 4, 4, 1, 4],
-  "Tian Tong":  [2, 5, 3, 4, 4, 1, 5, 3, 2, 2, 4, 1],
-  "Lian Zhen":  [4, 3, 1, 5, 2, 5, 4, 3, 1, 5, 2, 5],
-  "Tian Fu":    [1, 1, 2, 3, 1, 4, 2, 1, 3, 4, 1, 3],
-  "Tai Yin":    [1, 1, 5, 5, 5, 5, 5, 3, 2, 2, 1, 1],
-  "Tan Lang":   [2, 1, 4, 3, 1, 5, 2, 1, 4, 3, 1, 5],
-  "Ju Men":     [2, 5, 1, 1, 4, 3, 2, 5, 1, 2, 4, 2],
-  "Tian Xiang": [1, 1, 1, 3, 3, 4, 1, 3, 1, 3, 3, 2],
-  "Tian Liang": [1, 2, 1, 1, 1, 5, 1, 3, 5, 3, 2, 5],
-  "Qi Sha":     [2, 1, 1, 4, 2, 4, 2, 1, 1, 2, 2, 4],
+  "Zi Wei": [4, 1, 2, 2, 3, 2, 1, 1, 2, 2, 3, 2],
+  "Tian Ji": [1, 5, 3, 2, 4, 4, 1, 5, 3, 2, 4, 4],
+  "Tai Yang": [5, 5, 2, 1, 2, 2, 2, 3, 3, 4, 5, 5],
+  "Wu Qu": [2, 1, 3, 4, 1, 4, 2, 1, 3, 4, 1, 4],
+  "Tian Tong": [2, 5, 4, 4, 4, 1, 5, 5, 2, 4, 4, 1],
+  "Lian Zhen": [4, 4, 1, 4, 4, 5, 4, 4, 1, 4, 4, 5],
+  "Tian Fu": [1, 3, 1, 3, 1, 3, 2, 1, 3, 2, 1, 3],
+  "Tai Yin": [1, 1, 2, 5, 5, 5, 4, 5, 4, 2, 2, 1],
+  "Tan Lang": [2, 1, 4, 4, 1, 5, 2, 1, 4, 4, 1, 5],
+  "Ju Men": [2, 5, 1, 1, 5, 2, 2, 5, 1, 1, 5, 2],
+  "Tian Xiang": [1, 1, 1, 5, 3, 3, 1, 3, 1, 5, 3, 3],
+  "Tian Liang": [1, 2, 1, 1, 1, 5, 1, 2, 5, 3, 1, 5],
+  "Qi Sha": [2, 1, 1, 2, 1, 4, 2, 1, 1, 2, 1, 4],
   "Po Jun":     [1, 2, 3, 5, 2, 4, 1, 2, 3, 5, 2, 4],
 };
 
@@ -143,6 +160,67 @@ function huoLingStart(yearBranch: number): [number, number] {
     default:                 return [9, 10];  // 亥卯未 -> 酉 / 戌
   }
 }
+
+// ── Misc-tier tables ──────────────────────────────────────────────────────
+// These are the widely used placements. Schools differ on several of them —
+// the ones most often disputed are flagged. Correct here if Bambang's own
+// reference disagrees; nothing else in the engine depends on these.
+
+/** 天月, by lunar month 1..12. */
+const TIAN_YUE_STAR_BY_MONTH = [10, 5, 4, 2, 7, 3, 11, 7, 2, 6, 10, 2];
+/** 陰煞, by lunar month 1..12 (寅子戌申午辰 repeating). */
+const YIN_SHA_BY_MONTH = [2, 0, 10, 8, 6, 4, 2, 0, 10, 8, 6, 4];
+/** 解神, by lunar month 1..12 (pairs). */
+const JIE_SHEN_BY_MONTH = [8, 8, 10, 10, 0, 0, 2, 2, 4, 4, 6, 6];
+/** 天巫, by lunar month 1..12 (巳申寅亥 repeating). */
+const TIAN_WU_BY_MONTH = [5, 8, 2, 11, 5, 8, 2, 11, 5, 8, 2, 11];
+/** 天官 / 天福, by year stem 甲..癸. */
+const TIAN_GUAN_BY_STEM = [7, 4, 5, 2, 3, 9, 11, 9, 10, 6];
+const TIAN_FU_STAR_BY_STEM = [9, 8, 0, 11, 3, 2, 6, 5, 6, 5];
+/** 蜚廉, by year branch 子..亥. */
+const FEI_LIAN_BY_BRANCH = [8, 9, 10, 5, 6, 7, 2, 3, 4, 11, 0, 1];
+
+/** 孤辰 / 寡宿, by the year branch's seasonal group. */
+function guChenGuaSu(yearBranch: number): [number, number] {
+  if ([11, 0, 1].includes(yearBranch)) return [2, 10];  // 亥子丑 -> 寅 / 戌
+  if ([2, 3, 4].includes(yearBranch)) return [5, 1];    // 寅卯辰 -> 巳 / 丑
+  if ([5, 6, 7].includes(yearBranch)) return [8, 4];    // 巳午未 -> 申 / 辰
+  return [11, 7];                                        // 申酉戌 -> 亥 / 未
+}
+
+/** 破碎, by year-branch quadruplet. */
+function poSui(yearBranch: number): number {
+  if ([0, 6, 3, 9].includes(yearBranch)) return 5;   // 子午卯酉 -> 巳
+  if ([2, 8, 5, 11].includes(yearBranch)) return 9;  // 寅申巳亥 -> 酉
+  return 1;                                           // 辰戌丑未 -> 丑
+}
+
+/** 華蓋 / 咸池, by the year branch's trine. */
+function huaGaiXianChi(yearBranch: number): [number, number] {
+  switch (yearBranch) {
+    case 8: case 0: case 4:  return [4, 9];   // 申子辰 -> 辰 / 酉
+    case 2: case 6: case 10: return [10, 3];  // 寅午戌 -> 戌 / 卯
+    case 5: case 9: case 1:  return [1, 6];   // 巳酉丑 -> 丑 / 午
+    default:                 return [7, 0];   // 亥卯未 -> 未 / 子
+  }
+}
+
+/** 天廚, by year stem 甲..癸. */
+const TIAN_CHU_BY_STEM = [5, 6, 0, 5, 6, 8, 2, 6, 9, 11];
+
+/** 截路空亡 (截空) — a pair, by year stem: 甲己申酉, 乙庚午未, 丙辛辰巳, 丁壬寅卯, 戊癸子丑. */
+function jieKong(yearStem: number): [number, number] {
+  switch (yearStem % 5) {
+    case 0: return [8, 9];  // 甲 己
+    case 1: return [6, 7];  // 乙 庚
+    case 2: return [4, 5];  // 丙 辛
+    case 3: return [2, 3];  // 丁 壬
+    default: return [0, 1]; // 戊 癸
+  }
+}
+
+/** Branch characters, to read 空亡 back out of the Ba Zi result. */
+const DZ_ZH = "子丑寅卯辰巳午未申酉戌亥";
 
 /** 60-ganzhi index (0..59) for a stem/branch combination. */
 function ganzhiIndex(stem: number, branch: number): number {
@@ -231,6 +309,61 @@ export function calculateChart(info: BirthInfo, options: ChartOptions = {}): Zwd
     "Tian Ma": tianMaBranch(yearBranch),
   };
 
+  // ── 6b. Misc-tier stars ─────────────────────────────────────────────────
+  const wenChang = minors["Wen Chang"];
+  const wenQu = minors["Wen Qu"];
+  const zuoFu = minors["Zuo Fu"];
+  const youBi = minors["You Bi"];
+  const dayStep = lunarDay - 1;
+  const [guChen, guaSu] = guChenGuaSu(yearBranch);
+  const [huaGai, xianChi] = huaGaiXianChi(yearBranch);
+  const [jieLu, kongWang] = jieKong(yearStem);
+
+  const misc: Record<string, number> = {
+    "San Tai": mod12(zuoFu + dayStep),
+    "Ba Zuo": mod12(youBi - dayStep),
+    "En Guang": mod12(wenChang + dayStep - 1),
+    "Tian Gui Star": mod12(wenQu + dayStep - 1),
+    "Tai Fu": mod12(6 + hourBranch),
+    "Feng Gao": mod12(2 + hourBranch),
+    "Tian Xing": mod12(9 + monthStep),
+    "Tian Yao": mod12(1 + monthStep),
+    "Tian Wu": TIAN_WU_BY_MONTH[lunarMonth - 1],
+    "Tian Yue Star": TIAN_YUE_STAR_BY_MONTH[lunarMonth - 1],
+    "Yin Sha": YIN_SHA_BY_MONTH[lunarMonth - 1],
+    "Jie Shen": JIE_SHEN_BY_MONTH[lunarMonth - 1],
+    "Tian Cai": mod12(mingBranch + yearBranch),
+    "Tian Shou": mod12(shenBranch + yearBranch),
+    "Tian Guan": TIAN_GUAN_BY_STEM[yearStem],
+    "Tian Fu Star": TIAN_FU_STAR_BY_STEM[yearStem],
+    "Tian Ku": mod12(6 - yearBranch),
+    "Tian Xu": mod12(6 + yearBranch),
+    "Long Chi": mod12(4 + yearBranch),
+    "Feng Ge": mod12(10 - yearBranch),
+    "Gu Chen": guChen,
+    "Gua Su": guaSu,
+    "Fei Lian": FEI_LIAN_BY_BRANCH[yearBranch],
+    "Po Sui": poSui(yearBranch),
+    "Hua Gai": huaGai,
+    "Xian Chi": xianChi,
+    "Tian Chu": TIAN_CHU_BY_STEM[yearStem],
+    "Jie Lu": jieLu,
+    "Kong Wang": kongWang,
+    // 天空: one step forward from the year branch (太歲の前一位).
+    "Tian Kong": mod12(yearBranch + 1),
+    // 天德 counts from 卯, 月德 from 亥, both forward by the year branch.
+    "Tian De": mod12(3 + yearBranch),
+    "Yue De": mod12(11 + yearBranch),
+  };
+
+  // 旬空 — ZWDS takes the void from the YEAR pillar (Ba Zi uses the day
+  // pillar; the engine reports both). The pair always holds one yang and one
+  // yin branch, and only the one matching the year's own polarity is used
+  // (正空亡); 乙卯 -> 子丑 -> 丑. Verified against Bambang's reference chart.
+  const xunKong = [...(info.bazi.kongWang.year ?? "")]
+    .map((ch) => DZ_ZH.indexOf(ch))
+    .filter((i) => i >= 0 && i % 2 === yearBranch % 2);
+
   // ── 7. Natal Si Hua, from the birth-year stem ───────────────────────────
   const siHuaSet = SI_HUA_TABLE[STEMS[yearStem]];
   const natalSiHua: Record<string, SiHuaType> = {};
@@ -246,19 +379,22 @@ export function calculateChart(info: BirthInfo, options: ChartOptions = {}): Zwd
 
   // ── 9. Assemble the 12 palaces ──────────────────────────────────────────
   const starsByBranch = new Map<number, StarPlacement[]>();
-  const push = (branch: number, name: string, isMajor: boolean) => {
+  const push = (branch: number, name: string, tier: "major" | "aux" | "misc") => {
     const list = starsByBranch.get(branch) ?? [];
     list.push({
       name,
       nameZh: STAR_ZH[name] ?? name,
-      brightness: isMajor ? BRIGHTNESS[name][branch] : null,
-      isMajor,
+      brightness: tier === "major" ? BRIGHTNESS[name][branch] : null,
+      isMajor: tier === "major",
+      tier,
       natalSiHua: natalSiHua[name] ?? null,
     });
     starsByBranch.set(branch, list);
   };
-  Object.entries(majors).forEach(([n, b]) => push(b, n, true));
-  Object.entries(minors).forEach(([n, b]) => push(b, n, false));
+  Object.entries(majors).forEach(([n, b]) => push(b, n, "major"));
+  Object.entries(minors).forEach(([n, b]) => push(b, n, "aux"));
+  Object.entries(misc).forEach(([n, b]) => push(b, n, "misc"));
+  xunKong.forEach((b) => push(b, "Xun Kong", "misc"));
 
   const palaces: Palace[] = PALACE_NAMES.map((palaceName, i) => {
     // Palaces run counter-clockwise (decreasing branch) from Ming Gong.
@@ -273,9 +409,10 @@ export function calculateChart(info: BirthInfo, options: ChartOptions = {}): Zwd
       nameZh: PALACE_NAMES_ZH[palaceName],
       isBodyPalace: branch === shenBranch,
       ageRange: [startAge, startAge + 9] as [number, number],
-      stars: (starsByBranch.get(branch) ?? []).sort(
-        (a, b) => Number(b.isMajor) - Number(a.isMajor)
-      ),
+      stars: (starsByBranch.get(branch) ?? []).sort((a, b) => {
+        const rank = { major: 0, aux: 1, misc: 2 } as const;
+        return rank[a.tier ?? "aux"] - rank[b.tier ?? "aux"];
+      }),
       grid: GRID[branch],
     };
   });

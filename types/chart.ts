@@ -23,6 +23,16 @@ export interface StarPlacement {
   nameZh: string;             // e.g. "紫微"
   brightness: 1 | 2 | 3 | 4 | 5 | null; // 1 = brightest, 5 = dimmest, null = minor star w/o rating
   isMajor: boolean;           // true for the 14 major stars, false for auxiliary/minor stars
+  /**
+   * Display tier:
+   *   "major" — the 14 main stars
+   *   "aux"   — auxiliary stars that carry Si Hua or set structure
+   *             (文昌 文曲 左輔 右弼 祿存 擎羊 陀羅 火星 鈴星 天魁 天鉞 …)
+   *   "misc"  — the wider set of reading stars (三台 八座 天刑 天姚 …)
+   * Optional so older fixtures without it still type-check; absent means
+   * `isMajor ? "major" : "aux"`.
+   */
+  tier?: "major" | "aux" | "misc";
   natalSiHua: SiHuaType | null; // set if THIS star carries a natal transformation in this chart
   /**
    * 自化 self-transformation: set when this star is transformed by the stem of

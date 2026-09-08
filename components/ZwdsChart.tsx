@@ -134,6 +134,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   const [showBazi, setShowBazi] = useState(false);
   const [showMinor, setShowMinor] = useState(false);
   const [showClash, setShowClash] = useState(false);
+  const [showMisc, setShowMisc] = useState(false);
 
   // Once birth data exists the grid is computed; before that we render the
   // fixture passed in as a prop so the layout is still visible.
@@ -299,6 +300,13 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
             Show Minor Star
           </ToggleButton>
           <ToggleButton
+            active={showMisc}
+            onClick={() => setShowMisc((v) => !v)}
+            title="三台 八座 天刑 天姚 龍池 鳳閣 孤辰 寡宿 …"
+          >
+            Show Misc Star
+          </ToggleButton>
+          <ToggleButton
             active={showClash}
             onClick={() => setShowClash((v) => !v)}
             title="沖: the palace struck by Hua Ji also afflicts its opposite palace"
@@ -343,7 +351,11 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     shrink/truncate; brightness and the Si Hua tag must never
                     wrap onto their own line, or a narrow palace turns into a
                     ladder and pushes later stars out of the box. */}
-                {p.stars.filter((s) => s.isMajor || showMinor).map((s) => {
+                {p.stars
+                  .filter((s) =>
+                    s.tier === "misc" ? showMisc : s.isMajor || showMinor
+                  )
+                  .map((s) => {
                   // Highlighted when the ACTIVE palace sends a transformation
                   // to this star: filled with that Si Hua's colour, white text.
                   const hl = huaOfStar.get(s.name);
@@ -360,7 +372,11 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                       "flex flex-col sm:flex-row sm:items-baseline sm:gap-1 " +
                       (s.isMajor
                         ? "text-[10px] leading-tight text-neutral-700"
-                        : "text-[9px] leading-tight text-neutral-400")
+                        : s.tier === "misc"
+                          // Italic marks the misc tier at a glance, the way
+                          // Bambang's reference chart does.
+                          ? "text-[9px] italic leading-tight text-neutral-400/90"
+                          : "text-[9px] leading-tight text-neutral-400")
                     }
                   >
                     <span className="flex items-baseline gap-1 shrink-0">
@@ -440,7 +456,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     </span>
                   </div>
                   );
-                })}
+                  })}
               </div>
             </button>
           ))}
