@@ -41,3 +41,9 @@ reference/**/composer.phar
 reference/**/db/*.db
 reference/**/assets/
 reference/**/favicon.png
+
+# Salinan cadangan / file yang dikirim Claude. Jangan ditaruh di dalam proyek:
+# TypeScript memindai semua .ts/.tsx di sini, dan salinan komponen dengan import
+# relatif yang tidak valid akan menggagalkan `next build`.
+/Claude outputs/
+*-BACKUP-*
