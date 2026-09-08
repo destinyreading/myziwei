@@ -6,7 +6,7 @@ import type { EarthlyBranch, Palace, ZwdsChart as ZwdsChartData } from "../types
 import { resolveFlyingSiHua } from "../data/siHuaTable";
 import BirthForm from "./BirthForm";
 import BaziPanel from "./BaziPanel";
-import type { BirthInfo } from "../lib/birthInfo";
+import { computeBirthInfo, type BirthInfo } from "../lib/birthInfo";
 import { calculateChart } from "../lib/calculateChart";
 
 // ============================================================
@@ -135,6 +135,30 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   const [showMinor, setShowMinor] = useState(false);
   const [showClash, setShowClash] = useState(false);
   const [showSanFang, setShowSanFang] = useState(false);
+
+  // Auto-generate a chart for "now" as soon as the page opens, so a visitor
+  // sees a real chart instead of an empty form. Done in an effect (not in
+  // useState) because `new Date()` during the server render would not match
+  // the visitor's clock and React would flag a hydration mismatch.
+  useEffect(() => {
+    if (info) return;
+    const d = new Date();
+    const p2 = (n: number) => String(n).padStart(2, "0");
+    try {
+      setInfo(
+        computeBirthInfo({
+          name: "",
+          date: `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`,
+          time: `${p2(d.getHours())}:${p2(d.getMinutes())}`,
+          gender: "male",
+        })
+      );
+      setEditing(false);
+    } catch {
+      // out of the Jie Qi table's range, or similar — leave the form showing
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [showMisc, setShowMisc] = useState(false);
 
   // Once birth data exists the grid is computed; before that we render the
@@ -366,19 +390,37 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                 <span className="text-sm font-medium text-neutral-800">{p.nameZh.charAt(0)}</span>
                 <span className="text-[10px] text-neutral-400 truncate">{p.name}</span>
               </div>
-              <div className="flex w-full items-baseline justify-between gap-1 text-[9px] text-neutral-400">
-                <span>{p.branch} · {p.ageRange[0]}-{p.ageRange[1]}</span>
+              {/* Narrow screens stack this into two lines: the ganzhi + age
+                  range, then the two twelve-god cycles. On one line they crowd
+                  each other badly at 375px. */}
+              <div className="flex w-full flex-col gap-0.5 text-[9px] leading-tight text-neutral-400 sm:flex-row sm:items-baseline sm:justify-between sm:gap-1">
+                {/* Full ganzhi (stem + branch), e.g. "Geng Chen" — the stem is
+                    what drives this palace's flying Si Hua, so it belongs here. */}
+                <span className="whitespace-nowrap">
+                  {p.stem} {p.branch} · {p.ageRange[0]}-{p.ageRange[1]}
+                </span>
                 {/* 長生十二神 — one stage per palace, so it belongs on the header
                     line rather than competing with the star list. */}
-                {p.changSheng && (
-                  <span
-                    className="flex shrink-0 items-baseline gap-1 whitespace-nowrap text-neutral-400"
-                    title="長生十二神 — 12 life stages"
-                  >
-                    <span>{p.changSheng.nameZh}</span>
-                    <span className="text-[8px]">{p.changSheng.name}</span>
-                  </span>
-                )}
+                <span className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap text-neutral-400">
+                  {p.boShi && (
+                    <span
+                      className="flex items-baseline gap-1"
+                      title="博士十二神 — 12 officials"
+                    >
+                      <span>{p.boShi.nameZh}</span>
+                      <span className="hidden text-[8px] sm:inline">{p.boShi.name}</span>
+                    </span>
+                  )}
+                  {p.changSheng && (
+                    <span
+                      className="flex items-baseline gap-1"
+                      title="長生十二神 — 12 life stages"
+                    >
+                      <span>{p.changSheng.nameZh}</span>
+                      <span className="hidden text-[8px] sm:inline">{p.changSheng.name}</span>
+                    </span>
+                  )}
+                </span>
               </div>
               <div className="mt-1 space-y-0.5 w-full">
                 {/* One star = one line. The pinyin is the only part allowed to

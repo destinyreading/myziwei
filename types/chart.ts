@@ -56,6 +56,11 @@ export interface Palace {
    * in the same direction as the Da Xian.
    */
   changSheng?: { name: string; nameZh: string };
+  /**
+   * 博士十二神 — the twelve officials. Like 長生, every palace carries exactly
+   * one: the cycle starts on 祿存's branch and runs in the Da Xian direction.
+   */
+  boShi?: { name: string; nameZh: string };
   // Grid position for rendering the classic 4x4 layout (0-indexed, row/col).
   // The 2x2 center block (rows 1-2, cols 1-2) is reserved for the info panel.
   grid: { row: 0 | 1 | 2 | 3; col: 0 | 1 | 2 | 3 };

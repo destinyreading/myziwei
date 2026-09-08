@@ -239,6 +239,14 @@ const CHANG_SHENG: [string, string][] = [
   ["Mu", "墓"], ["Jue", "絕"], ["Tai", "胎"], ["Yang", "養"],
 ];
 
+// ── 博士十二神 ─────────────────────────────────────────────────────────────
+// 博士 always sits with 祿存; the rest follow in the Da Xian direction.
+const BO_SHI: [string, string][] = [
+  ["Bo Shi", "博士"], ["Li Shi", "力士"], ["Qing Long", "青龍"], ["Xiao Hao", "小耗"],
+  ["Jiang Jun", "將軍"], ["Zou Shu", "奏書"], ["Fei Lian", "飛廉"], ["Xi Shen", "喜神"],
+  ["Bing Fu", "病符"], ["Da Hao", "大耗"], ["Fu Bing", "伏兵"], ["Guan Fu", "官府"],
+];
+
 /** 60-ganzhi index (0..59) for a stem/branch combination. */
 function ganzhiIndex(stem: number, branch: number): number {
   for (let n = 0; n < 60; n++) {
@@ -433,6 +441,11 @@ export function calculateChart(info: BirthInfo, options: ChartOptions = {}): Zwd
         const rank = { major: 0, aux: 1, misc: 2 } as const;
         return rank[a.tier ?? "aux"] - rank[b.tier ?? "aux"];
       }),
+      boShi: (() => {
+        const step = forward ? mod12(branch - luCun) : mod12(luCun - branch);
+        const [name, nameZh] = BO_SHI[step];
+        return { name, nameZh };
+      })(),
       changSheng: (() => {
         const start = CHANG_SHENG_START[juNumber];
         const step = forward ? mod12(branch - start) : mod12(start - branch);
