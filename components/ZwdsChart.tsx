@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Cormorant_Garamond } from "next/font/google";
 import type { EarthlyBranch, Palace, ZwdsChart as ZwdsChartData } from "../types/chart";
 import { resolveFlyingSiHua } from "../data/siHuaTable";
 import BirthForm from "./BirthForm";
@@ -37,6 +38,9 @@ const HUA_COLOR: Record<"lu" | "quan" | "ke" | "ji", string> = {
   ke: "#d97706",   // amber-600   — reputation / recognition
   ji: "#e11d48",   // rose-600    — obstruction / fixation
 };
+
+// Self-hosted at build time by next/font — no runtime request to Google.
+const brandFont = Cormorant_Garamond({ subsets: ["latin"], weight: ["500", "600"], display: "swap" });
 
 const HUA_LABEL: Record<"lu" | "quan" | "ke" | "ji", string> = {
   lu: "化祿 Lu",
@@ -444,7 +448,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
           {/* center info panel spans the 2x2 middle block */}
           <div
             style={{ gridRow: "2 / span 2", gridColumn: "2 / span 2" }}
-            className="flex flex-col items-center justify-center overflow-y-auto text-center p-2 bg-neutral-50 border border-neutral-200"
+            className="relative flex flex-col items-center justify-center overflow-y-auto text-center p-2 pb-5 bg-neutral-50 border border-neutral-200"
           >
             {/* The centre block always shows the birth data. Hovering a palace
                 must not wipe it out — the active palace's own details live in
@@ -491,6 +495,27 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   </button>
                 </>
             )}
+
+            {/* Bottom row of the centre block: it travels with the chart, so
+                it stays visible in any screenshot of the grid. */}
+            <div className="absolute inset-x-2 bottom-1 flex items-end justify-between gap-2">
+              <a
+                href="https://www.destinyreading.id"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${brandFont.className} text-[11px] leading-none tracking-[0.12em] text-neutral-500 transition-colors hover:text-amber-700`}
+              >
+                © www.destinyreading.id
+              </a>
+              <button
+                type="button"
+                disabled
+                title="Transit chart (大限 / 流年) — belum dibuat"
+                className="text-[10px] leading-none text-neutral-300 cursor-not-allowed"
+              >
+                Transit Chart →
+              </button>
+            </div>
           </div>
         </div>
 

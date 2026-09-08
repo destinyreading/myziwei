@@ -154,12 +154,6 @@ export default function BaziPanel({ info, compact = false }: { info: BirthInfo; 
         </table>
       </div>
 
-      <p className="mt-3 text-[10px] leading-relaxed text-neutral-400">
-        Pilar dihitung oleh mesin Ba Zi Anda sendiri (port dari
-        <code className="mx-1">reference/bazical/api/calculate_core.php</code>), memakai tabel Jie Qi
-        1901–2100 dan konvensi 夜子时. Grid palace di atas masih memakai data contoh — belum dihitung
-        dari input ini sampai <code>calculateChart()</code> selesai dibuat.
-      </p>
     </div>
   );
 }
