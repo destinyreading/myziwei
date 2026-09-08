@@ -360,7 +360,10 @@ export function calculateChart(info: BirthInfo, options: ChartOptions = {}): Zwd
   // pillar; the engine reports both). The pair always holds one yang and one
   // yin branch, and only the one matching the year's own polarity is used
   // (正空亡); 乙卯 -> 子丑 -> 丑. Verified against Bambang's reference chart.
-  const xunKong = [...(info.bazi.kongWang.year ?? "")]
+  // split("") rather than [...str]: the project's tsconfig target predates
+  // ES2015 iteration, and these are all BMP characters anyway.
+  const xunKong = (info.bazi.kongWang.year ?? "")
+    .split("")
     .map((ch) => DZ_ZH.indexOf(ch))
     .filter((i) => i >= 0 && i % 2 === yearBranch % 2);
 
