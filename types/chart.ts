@@ -50,6 +50,12 @@ export interface Palace {
   isBodyPalace: boolean;      // true if Body Palace (身宮) coincides with this palace
   ageRange: [number, number]; // Da Xian (decade) age range for this palace
   stars: StarPlacement[];
+  /**
+   * 長生十二神 — the twelve life stages. Unlike a star, every palace carries
+   * exactly one: the cycle starts at a branch set by the Wu Xing Ju and runs
+   * in the same direction as the Da Xian.
+   */
+  changSheng?: { name: string; nameZh: string };
   // Grid position for rendering the classic 4x4 layout (0-indexed, row/col).
   // The 2x2 center block (rows 1-2, cols 1-2) is reserved for the info panel.
   grid: { row: 0 | 1 | 2 | 3; col: 0 | 1 | 2 | 3 };

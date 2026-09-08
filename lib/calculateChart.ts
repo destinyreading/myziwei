@@ -222,6 +222,23 @@ function jieKong(yearStem: number): [number, number] {
 /** Branch characters, to read 空亡 back out of the Ba Zi result. */
 const DZ_ZH = "子丑寅卯辰巳午未申酉戌亥";
 
+// ── 長生十二神 ─────────────────────────────────────────────────────────────
+// 長生 starts on a branch fixed by the Wu Xing Ju, then the twelve stages run
+// in the Da Xian direction (陽男陰女順行).
+const CHANG_SHENG_START: Record<number, number> = {
+  2: 8,  // 水二局 -> 申
+  3: 11, // 木三局 -> 亥
+  4: 5,  // 金四局 -> 巳
+  5: 8,  // 土五局 -> 申
+  6: 2,  // 火六局 -> 寅
+};
+
+const CHANG_SHENG: [string, string][] = [
+  ["Chang Sheng", "長生"], ["Mu Yu", "沐浴"], ["Guan Dai", "冠帶"], ["Lin Guan", "臨官"],
+  ["Di Wang", "帝旺"], ["Shuai", "衰"], ["Bing", "病"], ["Si", "死"],
+  ["Mu", "墓"], ["Jue", "絕"], ["Tai", "胎"], ["Yang", "養"],
+];
+
 /** 60-ganzhi index (0..59) for a stem/branch combination. */
 function ganzhiIndex(stem: number, branch: number): number {
   for (let n = 0; n < 60; n++) {
@@ -416,6 +433,12 @@ export function calculateChart(info: BirthInfo, options: ChartOptions = {}): Zwd
         const rank = { major: 0, aux: 1, misc: 2 } as const;
         return rank[a.tier ?? "aux"] - rank[b.tier ?? "aux"];
       }),
+      changSheng: (() => {
+        const start = CHANG_SHENG_START[juNumber];
+        const step = forward ? mod12(branch - start) : mod12(start - branch);
+        const [name, nameZh] = CHANG_SHENG[step];
+        return { name, nameZh };
+      })(),
       grid: GRID[branch],
     };
   });

@@ -343,8 +343,18 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                 <span className="text-sm font-medium text-neutral-800">{p.nameZh.charAt(0)}</span>
                 <span className="text-[10px] text-neutral-400 truncate">{p.name}</span>
               </div>
-              <div className="text-[9px] text-neutral-400">
-                {p.branch} · {p.ageRange[0]}-{p.ageRange[1]}
+              <div className="flex w-full items-baseline justify-between gap-1 text-[9px] text-neutral-400">
+                <span>{p.branch} · {p.ageRange[0]}-{p.ageRange[1]}</span>
+                {/* 長生十二神 — one stage per palace, so it sits on the header
+                    line rather than competing with the star list. */}
+                {p.changSheng && (
+                  <span
+                    className="shrink-0 text-neutral-400"
+                    title={`長生十二神: ${p.changSheng.name}`}
+                  >
+                    {p.changSheng.nameZh}
+                  </span>
+                )}
               </div>
               <div className="mt-1 space-y-0.5 w-full">
                 {/* One star = one line. The pinyin is the only part allowed to
@@ -497,6 +507,15 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   <div className="text-xs font-medium text-neutral-700 truncate max-w-full">{info.name}</div>
                   <div className="text-[10px] text-neutral-500 mt-1">{info.solarDate} · {info.solarTime}</div>
                   <div className="text-[10px] text-neutral-500">{info.lunarText}</div>
+                  {/* Same lunar date in plain numerals — day / month / year,
+                      the order the reference calculators use. */}
+                  <div
+                    className="text-[10px] text-neutral-500"
+                    title="Tanggal lunar: hari / bulan / tahun"
+                  >
+                    Lunar: {info.lunarDay} / {info.lunarMonth}
+                    {info.isLeapMonth && <span className="text-amber-700"> (闰)</span>} / {info.lunarYear}
+                  </div>
                   <div className="text-[10px] text-neutral-500">
                     {info.bazi.pillars.year.tg}{info.bazi.pillars.year.dz} · {info.zodiac} ·{" "}
                     {info.gender === "male" ? "Pria" : "Wanita"}
