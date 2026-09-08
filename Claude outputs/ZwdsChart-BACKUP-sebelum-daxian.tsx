@@ -135,10 +135,6 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   const [showMinor, setShowMinor] = useState(false);
   const [showClash, setShowClash] = useState(false);
   const [showSanFang, setShowSanFang] = useState(false);
-  // Set on mount (never during SSR) so the clock matches the visitor's.
-  const [todayYear, setTodayYear] = useState<number | null>(null);
-  /** Age at which the selected Da Xian starts; null = follow "today". */
-  const [decadeStart, setDecadeStart] = useState<number | null>(null);
 
   // Auto-generate a chart for "now" as soon as the page opens, so a visitor
   // sees a real chart instead of an empty form. Done in an effect (not in
@@ -148,7 +144,6 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     if (info) return;
     const d = new Date();
     const p2 = (n: number) => String(n).padStart(2, "0");
-    setTodayYear(d.getFullYear());
     try {
       setInfo(
         computeBirthInfo({
@@ -277,44 +272,6 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     return () => ro.disconnect();
   }, [measure]);
 
-  // ── 大限 / 流年 ──────────────────────────────────────────────────────────
-  // Lunar age (虚岁): 1 at birth, +1 each lunar new year, so age = year - birth
-  // year + 1. The visible decade defaults to the one containing today's age.
-  const lunarAgeNow =
-    info && todayYear ? todayYear - info.lunarYear + 1 : null;
-
-  const activeDecade = useMemo(() => {
-    if (!info) return null;
-    const start =
-      decadeStart ??
-      (lunarAgeNow != null
-        ? chart.palaces.find(
-            (p) => lunarAgeNow >= p.ageRange[0] && lunarAgeNow <= p.ageRange[1]
-          )?.ageRange[0]
-        : undefined);
-    if (start == null) return null;
-    const palace = chart.palaces.find((p) => p.ageRange[0] === start);
-    if (!palace) return null;
-
-    // Each year of the decade sits on the palace whose branch matches that
-    // year's own branch (2018 戊戌 -> 戌). Ten years over twelve palaces, so
-    // two palaces stay blank.
-    const years = new Map<EarthlyBranch, { year: number; age: number }>();
-    for (let age = start; age <= start + 9; age++) {
-      const year = info.lunarYear + age - 1;
-      years.set(BRANCH_ORDER[((year - 4) % 12 + 12) % 12], { year, age });
-    }
-
-    // 大限十二宮: the decade palace is D-Self, then the same anticlockwise order.
-    const i = BRANCH_ORDER.indexOf(palace.branch);
-    const names = new Map<EarthlyBranch, string>();
-    chart.palaces.forEach((_, offset) => {
-      names.set(BRANCH_ORDER[((i - offset) % 12 + 12) % 12], chart.palaces[offset].name);
-    });
-
-    return { start, palace, years, names };
-  }, [info, chart, decadeStart, lunarAgeNow]);
-
   const flying = useMemo(() => {
     if (!activePalace) return null;
     return resolveFlyingSiHua(activePalace.stem, (starName) => {
@@ -429,7 +386,42 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                 p.isBodyPalace ? "ring-1 ring-inset ring-neutral-400" : "",
               ].join(" ")}
             >
-
+              <div className="flex items-baseline gap-1 w-full">
+                <span className="text-sm font-medium text-neutral-800">{p.nameZh.charAt(0)}</span>
+                <span className="text-[10px] text-neutral-400 truncate">{p.name}</span>
+              </div>
+              {/* Narrow screens stack this into two lines: the ganzhi + age
+                  range, then the two twelve-god cycles. On one line they crowd
+                  each other badly at 375px. */}
+              <div className="flex w-full flex-col gap-0.5 text-[9px] leading-tight text-neutral-400 sm:flex-row sm:items-baseline sm:justify-between sm:gap-1">
+                {/* Full ganzhi (stem + branch), e.g. "Geng Chen" — the stem is
+                    what drives this palace's flying Si Hua, so it belongs here. */}
+                <span className="whitespace-nowrap">
+                  {p.stem} {p.branch} · {p.ageRange[0]}-{p.ageRange[1]}
+                </span>
+                {/* 長生十二神 — one stage per palace, so it belongs on the header
+                    line rather than competing with the star list. */}
+                <span className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap text-neutral-400">
+                  {p.boShi && (
+                    <span
+                      className="flex items-baseline gap-1"
+                      title="博士十二神 — 12 officials"
+                    >
+                      <span>{p.boShi.nameZh}</span>
+                      <span className="hidden text-[8px] sm:inline">{p.boShi.name}</span>
+                    </span>
+                  )}
+                  {p.changSheng && (
+                    <span
+                      className="flex items-baseline gap-1"
+                      title="長生十二神 — 12 life stages"
+                    >
+                      <span>{p.changSheng.nameZh}</span>
+                      <span className="hidden text-[8px] sm:inline">{p.changSheng.name}</span>
+                    </span>
+                  )}
+                </span>
+              </div>
               <div className="mt-1 space-y-0.5 w-full">
                 {/* One star = one line. The pinyin is the only part allowed to
                     shrink/truncate; brightness and the Si Hua tag must never
@@ -541,82 +533,6 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   </div>
                   );
                   })}
-
-                {/* 博士十二神 / 長生十二神 close the star list. They are palace
-                    attributes, not stars, so they sit just below it — and the
-                    footer line beside the Da Xian label stays free for
-                    whatever we add later. */}
-                {/* The two twelve-god cycles ride along with the misc tier:
-                    they are reading detail, not structure, so they stay hidden
-                    until "Show Misc Star" is on. */}
-                <div
-                  className={
-                    "mt-0.5 flex-col gap-0 text-[8px] leading-tight text-neutral-400 " +
-                    (showMisc ? "flex" : "hidden")
-                  }
-                >
-                  {p.boShi && (
-                    <span className="flex items-baseline gap-0.5" title="博士十二神">
-                      <span>{p.boShi.nameZh}</span>
-                      <span>{p.boShi.name}</span>
-                    </span>
-                  )}
-                  {p.changSheng && (
-                    <span className="flex items-baseline gap-0.5" title="長生十二神">
-                      <span>{p.changSheng.nameZh}</span>
-                      <span>{p.changSheng.name}</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* ── palace footer ───────────────────────────────────────────
-                  Mirrors the reference app: the two twelve-god cycles and the
-                  Da Xian palace name sit on one line, then a 3x2 grid holding
-                  ganzhi / Da Xian range / Liu Nian year, and below them the
-                  branch / palace name / lunar age. */}
-              <div className="mt-auto w-full pt-0.5 text-[8px] leading-tight text-neutral-400">
-                <div className="flex items-baseline justify-between gap-1 whitespace-nowrap">
-                  <span />
-                  {activeDecade?.names.get(p.branch) && (
-                    <span className="shrink-0 text-rose-600" title="大限十二宮">
-                      D{activeDecade.names.get(p.branch)}
-                    </span>
-                  )}
-                </div>
-
-                <div className="mt-0.5 grid grid-cols-[auto_1fr_auto] items-center gap-x-1 border-t border-neutral-200 pt-0.5">
-                  <span className="text-neutral-500">{p.stem}</span>
-                  {/* Clicking the age range switches the whole chart to that
-                      decade; stopPropagation so it does not also select the
-                      palace. */}
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDecadeStart(p.ageRange[0]);
-                    }}
-                    title={`Da Xian ${p.ageRange[0]}-${p.ageRange[1]} — klik untuk pilih dekade ini`}
-                    className={[
-                      "cursor-pointer rounded px-0.5 text-center",
-                      activeDecade?.start === p.ageRange[0]
-                        ? "bg-amber-200 font-medium text-neutral-800"
-                        : "hover:bg-neutral-200",
-                    ].join(" ")}
-                  >
-                    {p.ageRange[0]}-{p.ageRange[1]}
-                  </span>
-                  <span className="text-right text-neutral-500">
-                    {activeDecade?.years.get(p.branch)?.year ?? ""}
-                  </span>
-
-                  <span className="text-neutral-500">{p.branch}</span>
-                  <span className="truncate text-center text-[9px] text-neutral-700">
-                    {p.nameZh.charAt(0)} {p.name}
-                  </span>
-                  <span className="text-right text-neutral-500">
-                    {activeDecade?.years.get(p.branch)?.age ?? ""}
-                  </span>
-                </div>
               </div>
             </button>
           ))}
@@ -707,7 +623,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
             matches the measured box) so each line can end on its own star row.
             Falls back to the palace centre when the target star is not
             rendered — e.g. a minor star while "Show Minor Star" is off. */}
-        {geom && (
+        {activePalace && flying && geom && (
           <svg
             viewBox={`0 0 ${geom.w} ${geom.h}`}
             className="absolute inset-0 w-full h-full pointer-events-none"
@@ -729,72 +645,10 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
               ))}
             </defs>
 
-            {/* Permanent arrows: a palace's OWN stem (宮干四化) sending a
-                transformation into the palace directly opposite it. Only those
-                are drawn — a transformation landing anywhere else is shown on
-                hover, not permanently. */}
-            {chart.palaces.map((src) => {
-              const oppBranch =
-                BRANCH_ORDER[(BRANCH_ORDER.indexOf(src.branch) + 6) % 12];
-              const f = resolveFlyingSiHua(src.stem, (n) => starIndex.get(n) ?? null);
-              const cellW = geom.w / 4;
-              const cellH = geom.h / 4;
-              return (["lu", "quan", "ke", "ji"] as const).map((k) => {
-                const t = f[k];
-                if (!t.palace) return null;
-                if (branchByName.get(t.palace) !== oppBranch) return null;
-                const opp = palaceByBranch.get(oppBranch);
-                if (!opp) return null;
-                // A short stub inside the source palace pointing toward the
-                // opposite one — a full line across the grid would cut through
-                // the centre block and crowd the hover lines.
-                const c = {
-                  x: (src.grid.col + 0.5) * cellW,
-                  y: (src.grid.row + 0.5) * cellH,
-                };
-                const o = {
-                  x: (opp.grid.col + 0.5) * cellW,
-                  y: (opp.grid.row + 0.5) * cellH,
-                };
-                const dx = o.x - c.x;
-                const dy = o.y - c.y;
-                const len = Math.hypot(dx, dy) || 1;
-                const n = { x: dx / len, y: dy / len };
-                // Offset each hua slightly so two stubs from the same palace
-                // do not sit on top of each other.
-                const lane = (["lu", "quan", "ke", "ji"] as const).indexOf(k) - 1.5;
-                const px = -n.y * lane * 5;
-                const py = n.x * lane * 5;
-                // Distance from the cell centre to its edge along n, so the
-                // stub starts just OUTSIDE the palace box and points inward,
-                // toward the opposite palace.
-                const edge = Math.min(
-                  Math.abs(n.x) < 1e-6 ? Infinity : (cellW / 2) / Math.abs(n.x),
-                  Math.abs(n.y) < 1e-6 ? Infinity : (cellH / 2) / Math.abs(n.y)
-                );
-                const from = { x: c.x + n.x * (edge + 3) + px, y: c.y + n.y * (edge + 3) + py };
-                const to = { x: c.x + n.x * (edge + 27) + px, y: c.y + n.y * (edge + 27) + py };
-                return (
-                  <line
-                    key={`opp-${src.branch}-${k}`}
-                    x1={from.x}
-                    y1={from.y}
-                    x2={to.x}
-                    y2={to.y}
-                    stroke={HUA_COLOR[k]}
-                    strokeWidth={1.4}
-                    markerEnd={`url(#hua-arrow-${k})`}
-                  >
-                    <title>{`${src.name} ${src.stem} → ${k.toUpperCase()} ${t.star} → ${opp.name} (seberang)`}</title>
-                  </line>
-                );
-              });
-            })}
-
             {/* 沖 clash: the palace struck by Hua Ji also afflicts the palace
                 opposite it (branch + 6). Drawn as a dashed red line from the
                 afflicted star to the centre of that opposite palace. */}
-            {showClash && activePalace && flying && (() => {
+            {showClash && (() => {
               const jiTarget = flying.ji;
               if (!jiTarget.palace) return null;
               const hitBranch = branchByName.get(jiTarget.palace);
@@ -832,7 +686,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
               );
             })()}
 
-            {activePalace && flying && (["lu", "quan", "ke", "ji"] as const).map((k) => {
+            {(["lu", "quan", "ke", "ji"] as const).map((k) => {
               const target = flying[k];
               if (!target.palace) return null; // star not placed in this chart
               const targetBranch = branchByName.get(target.palace);
