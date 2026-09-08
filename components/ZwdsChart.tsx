@@ -45,6 +45,12 @@ const HUA_LABEL: Record<"lu" | "quan" | "ke" | "ji", string> = {
   ji: "化忌 Ji",
 };
 
+// Branch wheel order, so the opposite palace (対宮) is simply +6.
+const BRANCH_ORDER: EarthlyBranch[] = [
+  "Zi", "Chou", "Yin", "Mao", "Chen", "Si",
+  "Wu", "Wei", "Shen", "You", "Xu", "Hai",
+];
+
 function centerOf(row: number, col: number) {
   return { x: ((col + 0.5) / 4) * 100, y: ((row + 0.5) / 4) * 100 };
 }
@@ -123,6 +129,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   const [editing, setEditing] = useState(true);
   const [showBazi, setShowBazi] = useState(false);
   const [showMinor, setShowMinor] = useState(false);
+  const [showClash, setShowClash] = useState(false);
 
   // Once birth data exists the grid is computed; before that we render the
   // fixture passed in as a prop so the layout is still visible.
@@ -234,6 +241,17 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     });
   }, [activePalace, starIndex]);
 
+  // Which star each of the active palace's four transformations lands on, so
+  // the receiving star itself can be highlighted in the grid.
+  const huaOfStar = useMemo(() => {
+    const map = new Map<string, "lu" | "quan" | "ke" | "ji">();
+    if (!flying) return map;
+    (["lu", "quan", "ke", "ji"] as const).forEach((k) => {
+      if (flying[k].palace) map.set(flying[k].star, k);
+    });
+    return map;
+  }, [flying]);
+
   function handleSelect(branch: EarthlyBranch) {
     setSelected((prev) => (prev === branch ? null : branch));
   }
@@ -276,6 +294,13 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
           <ToggleButton active={showMinor} onClick={() => setShowMinor((v) => !v)}>
             Show Minor Star
           </ToggleButton>
+          <ToggleButton
+            active={showClash}
+            onClick={() => setShowClash((v) => !v)}
+            title="沖: the palace struck by Hua Ji also afflicts its opposite palace"
+          >
+            Show Clash 沖
+          </ToggleButton>
         </div>
       </div>
 
@@ -314,13 +339,17 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     shrink/truncate; brightness and the Si Hua tag must never
                     wrap onto their own line, or a narrow palace turns into a
                     ladder and pushes later stars out of the box. */}
-                {p.stars.filter((s) => s.isMajor || showMinor).map((s) => (
+                {p.stars.filter((s) => s.isMajor || showMinor).map((s) => {
+                  // Highlighted when the ACTIVE palace sends a transformation
+                  // to this star: filled with that Si Hua's colour, white text.
+                  const hl = huaOfStar.get(s.name);
+                  const hlStyle = hl
+                    ? { backgroundColor: HUA_COLOR[hl], color: "#fff" }
+                    : undefined;
+                  const hlClass = hl ? "rounded-sm px-[3px]" : "";
+                  return (
                   <div
                     key={s.name}
-                    ref={(el) => {
-                      if (el) starRefs.current.set(s.name, el);
-                      else starRefs.current.delete(s.name);
-                    }}
                     className={
                       // Narrow screens stack the pinyin under the Chinese name;
                       // from `sm` up there is room for one line per star.
@@ -331,7 +360,18 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     }
                   >
                     <span className="flex items-baseline gap-1 shrink-0">
-                      <span>{s.nameZh}</span>
+                      {/* The Si Hua arrows aim at THIS element, so the ref
+                          belongs on the name, not on the full-width row. */}
+                      <span
+                        ref={(el) => {
+                          if (el) starRefs.current.set(s.name, el);
+                          else starRefs.current.delete(s.name);
+                        }}
+                        className={hlClass}
+                        style={hlStyle}
+                      >
+                        {s.nameZh}
+                      </span>
                       <span className="sm:hidden">
                         <BrightnessMark level={s.brightness} />
                       </span>
@@ -360,9 +400,12 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     </span>
                     <span
                       className={
-                        "truncate " +
-                        (s.isMajor ? "text-[9px] text-neutral-500" : "text-[8px] text-neutral-400")
+                        "truncate " + hlClass + " " +
+                        (hl
+                          ? s.isMajor ? "text-[9px]" : "text-[8px]"
+                          : s.isMajor ? "text-[9px] text-neutral-500" : "text-[8px] text-neutral-400")
                       }
+                      style={hlStyle}
                     >
                       {s.name}
                     </span>
@@ -392,7 +435,8 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                       )}
                     </span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </button>
           ))}
@@ -402,8 +446,10 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
             style={{ gridRow: "2 / span 2", gridColumn: "2 / span 2" }}
             className="flex flex-col items-center justify-center overflow-y-auto text-center p-2 bg-neutral-50 border border-neutral-200"
           >
-            {!activePalace ? (
-              !info || editing ? (
+            {/* The centre block always shows the birth data. Hovering a palace
+                must not wipe it out — the active palace's own details live in
+                the panel below the grid instead. */}
+            {!info || editing ? (
                 <BirthForm
                   defaults={
                     info
@@ -444,12 +490,6 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     Ubah data
                   </button>
                 </>
-              )
-            ) : (
-              <>
-                <div className="text-sm font-medium text-neutral-800">{activePalace.nameZh} {activePalace.name}</div>
-                <div className="text-[10px] text-neutral-500">stem {activePalace.stem}</div>
-              </>
             )}
           </div>
         </div>
@@ -479,6 +519,47 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                 </marker>
               ))}
             </defs>
+
+            {/* 沖 clash: the palace struck by Hua Ji also afflicts the palace
+                opposite it (branch + 6). Drawn as a dashed red line from the
+                afflicted star to the centre of that opposite palace. */}
+            {showClash && (() => {
+              const jiTarget = flying.ji;
+              if (!jiTarget.palace) return null;
+              const hitBranch = branchByName.get(jiTarget.palace);
+              if (!hitBranch) return null;
+              const oppBranch =
+                BRANCH_ORDER[(BRANCH_ORDER.indexOf(hitBranch) + 6) % 12];
+              const oppPalace = palaceByBranch.get(oppBranch);
+              if (!oppPalace) return null;
+
+              const cellW = geom.w / 4;
+              const cellH = geom.h / 4;
+              const hitPalace = palaceByBranch.get(hitBranch)!;
+              const star = geom.stars[jiTarget.star];
+              const from = star
+                ? { x: star.x, y: star.y }
+                : {
+                    x: (hitPalace.grid.col + 0.5) * cellW,
+                    y: (hitPalace.grid.row + 0.5) * cellH,
+                  };
+              const to = {
+                x: (oppPalace.grid.col + 0.5) * cellW,
+                y: (oppPalace.grid.row + 0.5) * cellH,
+              };
+              return (
+                <line
+                  x1={from.x}
+                  y1={from.y}
+                  x2={to.x}
+                  y2={to.y}
+                  stroke={HUA_COLOR.ji}
+                  strokeWidth={1.2}
+                  strokeDasharray="5 4"
+                  markerEnd="url(#hua-arrow-ji)"
+                />
+              );
+            })()}
 
             {(["lu", "quan", "ke", "ji"] as const).map((k) => {
               const target = flying[k];
@@ -585,6 +666,22 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
               );
             })}
           </ul>
+          {showClash && flying.ji.palace && (() => {
+            const hitBranch = branchByName.get(flying.ji.palace);
+            if (!hitBranch) return null;
+            const opp = palaceByBranch.get(
+              BRANCH_ORDER[(BRANCH_ORDER.indexOf(hitBranch) + 6) % 12]
+            );
+            if (!opp) return null;
+            return (
+              <div className="mt-2 border-t border-neutral-200 pt-2 text-neutral-700">
+                <span className="font-medium" style={{ color: HUA_COLOR.ji }}>沖 Clash</span>{" "}
+                <span className="text-neutral-500">
+                  {flying.ji.palace} (kena 忌) → {opp.name} {opp.nameZh}
+                </span>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
