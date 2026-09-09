@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Cormorant_Garamond } from "next/font/google";
-import type { EarthlyBranch, Palace, ZwdsChart as ZwdsChartData } from "../types/chart";
-import { resolveFlyingSiHua } from "../data/siHuaTable";
+import type { EarthlyBranch, HeavenlyStem, Palace, ZwdsChart as ZwdsChartData } from "../types/chart";
+import { SI_HUA_TABLE, resolveFlyingSiHua } from "../data/siHuaTable";
 import BirthForm from "./BirthForm";
 import BaziPanel from "./BaziPanel";
 import { computeBirthInfo, type BirthInfo } from "../lib/birthInfo";
@@ -64,6 +64,25 @@ const HUA_LABEL: Record<"lu" | "quan" | "ke" | "ji", string> = {
   ke: "化科 Ke",
   ji: "化忌 Ji",
 };
+
+/**
+ * 大限四化 / 流年四化 tag colours. Deliberately the same rose/violet as the
+ * DLife / ALife ring labels in the palace footer — one colour per LAYER, not
+ * per transformation, so a tag and its ring read as the same thing.
+ * Rose is also natal 忌; the "D" prefix is what separates them. If that ever
+ * reads as ambiguous, move 忌/煞星 to brick red — not the ring colour, which
+ * has to stay matched to its label.
+ */
+const LAYER_COLOR = { D: "#e11d48", A: "#7c3aed" } as const;
+
+// Latin tag text per transformation, matching the natal tags already shown.
+const HUA_TAG = { lu: "Lu", quan: "Quan", ke: "Ke", ji: "Ji" } as const;
+const HUA_ZH = { lu: "祿", quan: "權", ke: "科", ji: "忌" } as const;
+
+// Stem wheel, for 流年天干: 1984 is 甲子, so (year - 4) mod 10 indexes it.
+const STEM_ORDER: HeavenlyStem[] = [
+  "Jia", "Yi", "Bing", "Ding", "Wu", "Ji", "Geng", "Xin", "Ren", "Gui",
+];
 
 // Branch wheel order, so the opposite palace (対宮) is simply +6.
 const BRANCH_ORDER: EarthlyBranch[] = [
@@ -181,6 +200,13 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
    * D/A/M labels, 3x2 footer, red 煞星. Only the box shape differs.
    */
   const [desktop, setDesktop] = useState(false);
+  /**
+   * Which stem 流年四化 is taken from. 年干 (the year's own Heavenly Stem) is
+   * the common reading and the default; 宮干 uses the stem of the palace the
+   * year lands on, which some schools prefer. 大限四化 has no such split —
+   * it always comes from the decade palace's own stem.
+   */
+  const [liuNianStem, setLiuNianStem] = useState<"year" | "palace">("year");
 
   // Auto-generate a chart for "now" as soon as the page opens, so a visitor
   // sees a real chart instead of an empty form. Done in an effect (not in
@@ -328,7 +354,13 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   // below instead.
   useLayoutEffect(() => {
     measure();
-  }, [measure, chart, showMinor, showMisc, showBazi, editing, info, desktop, activePalace?.branch]);
+    // decadeStart / selectedYear / liuNianStem are listed rather than
+    // activeDecade and annual: those memos are declared BELOW this effect, and
+    // naming them in the dep array would read them before initialisation.
+  }, [
+    measure, chart, showMinor, showMisc, showBazi, editing, info, desktop,
+    decadeStart, selectedYear, liuNianStem, activePalace?.branch,
+  ]);
 
   useEffect(() => {
     const el = gridRef.current;
@@ -425,6 +457,39 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     return { month: selectedMonth, branch, names };
   }, [annual, selectedMonth, chart]);
 
+  // ── 大限四化 / 流年四化 ──────────────────────────────────────────────────
+  // Which stars the DECADE's and the YEAR's four transformations land on, as a
+  // star -> tags map so the grid can label the star itself. Deliberately gated
+  // on `desktop`: these tags exist only inside the full-screen layer, where a
+  // palace is 354px wide. Off that layer the map is empty, so nothing is
+  // computed and nothing is rendered — on a phone they are absent, not hidden.
+  const layerSiHua = useMemo(() => {
+    const map = new Map<string, { layer: "D" | "A"; hua: "Lu" | "Quan" | "Ke" | "Ji"; huaZh: string }[]>();
+    if (!desktop) return map;
+
+    const add = (layer: "D" | "A", stem: HeavenlyStem) => {
+      const set = SI_HUA_TABLE[stem];
+      (["lu", "quan", "ke", "ji"] as const).forEach((k) => {
+        const star = set[k];
+        // A star the chart never placed carries no tag.
+        if (!starIndex.has(star)) return;
+        const list = map.get(star) ?? [];
+        list.push({ layer, hua: HUA_TAG[k], huaZh: HUA_ZH[k] });
+        map.set(star, list);
+      });
+    };
+
+    if (activeDecade) add("D", activeDecade.palace.stem);
+    if (annual) {
+      const stem =
+        liuNianStem === "year"
+          ? STEM_ORDER[((annual.year - 4) % 10 + 10) % 10]
+          : palaceByBranch.get(annual.branch)?.stem;
+      if (stem) add("A", stem);
+    }
+    return map;
+  }, [desktop, activeDecade, annual, liuNianStem, starIndex, palaceByBranch]);
+
   const flying = useMemo(() => {
     if (!activePalace) return null;
     return resolveFlyingSiHua(activePalace.stem, (starName) => {
@@ -520,6 +585,23 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
               so it cannot be pressed there, and it disappears again if the
               desktop window is narrowed — a layout this wide is useless in a
               narrow window. */}
+          {/* Only meaningful inside the layer, because that is the only place
+              the 流年 tags exist. Showing it in the normal view would offer a
+              choice with no visible effect. */}
+          {desktop && (
+            <button
+              type="button"
+              onClick={() => setLiuNianStem((m) => (m === "year" ? "palace" : "year"))}
+              title={
+                liuNianStem === "year"
+                  ? "流年四化 dari stem tahun (年干) — cara yang lazim. Klik untuk memakai stem palace (宮干)."
+                  : "流年四化 dari stem palace tempat tahun itu jatuh (宮干). Klik untuk kembali ke stem tahun (年干)."
+              }
+              className="rounded border border-neutral-300 bg-white px-2 py-1 text-[11px] text-neutral-600 transition-colors hover:bg-neutral-50"
+            >
+              流年 {liuNianStem === "year" ? "年干" : "宮干"}
+            </button>
+          )}
           {desktop ? (
             <button
               type="button"
@@ -745,7 +827,17 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     <span className="hidden sm:inline-flex shrink-0">
                       <BrightnessMark level={s.brightness} />
                     </span>
-                    <span className="hidden sm:flex ml-auto shrink-0 items-baseline whitespace-nowrap">
+                    {/* Normally the Si Hua tags are pushed to the right edge of
+                        the palace (ml-auto), which reads well in a 166px box. In
+                        Desktop Version the box is 354px, so ml-auto strands the
+                        tag half a palace away from the star it belongs to —
+                        there they sit right after the name instead. */}
+                    <span
+                      className={
+                        "hidden sm:flex shrink-0 items-baseline whitespace-nowrap " +
+                        (desktop ? "ml-1.5" : "ml-auto")
+                      }
+                    >
                       {s.natalSiHua && (
                         <span
                           className="ml-1 text-[9px] font-medium"
@@ -766,6 +858,24 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                           自{s.selfSiHua}
                         </span>
                       )}
+                      {/* 大限 / 流年 tags, after natal and 自化 so the reading
+                          order is natal → self → decade → year. The map is
+                          empty unless the Desktop Version layer is open. */}
+                      {layerSiHua.get(s.name)?.map((t) => (
+                        <span
+                          key={t.layer + t.hua}
+                          className="ml-1 text-[11px] font-medium"
+                          style={{ color: LAYER_COLOR[t.layer] }}
+                          title={
+                            t.layer === "D"
+                              ? `大限四化 ${t.huaZh} — dari stem palace 大限`
+                              : `流年四化 ${t.huaZh} — dari ${liuNianStem === "year" ? "stem tahun (年干)" : "stem palace (宮干)"}`
+                          }
+                        >
+                          {t.layer}
+                          {t.hua}
+                        </span>
+                      ))}
                     </span>
                   </div>
                   );
