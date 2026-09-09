@@ -170,6 +170,17 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   >(null);
   /** True while showing the chart auto-generated for the visitor's clock. */
   const [isNow, setIsNow] = useState(false);
+  /**
+   * Desktop Version: a full-screen layer on the SAME page (not window.open),
+   * so every bit of state travels with it — decade, year, month, the star
+   * being read, all three toggles. A second window would mean a second page,
+   * birth data through the URL, state lost, and pop-up blockers.
+   * The palace boxes are deliberately NOT square here: the grid fills a
+   * landscape screen, so each palace becomes a wide rectangle (~2.2:1). The
+   * CONTENT is unchanged — same 漢字 + pinyin, brightness dots, Si Hua tags,
+   * D/A/M labels, 3x2 footer, red 煞星. Only the box shape differs.
+   */
+  const [desktop, setDesktop] = useState(false);
 
   // Auto-generate a chart for "now" as soon as the page opens, so a visitor
   // sees a real chart instead of an empty form. Done in an effect (not in
@@ -197,6 +208,24 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [showMisc, setShowMisc] = useState(false);
+
+  // Esc leaves the full-screen layer. Bound only while it is open, so it can
+  // never swallow Esc from anything else on the page.
+  useEffect(() => {
+    if (!desktop) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDesktop(false);
+    };
+    window.addEventListener("keydown", onKey);
+    // The layer covers the viewport; letting the page behind it scroll only
+    // moves content the visitor cannot see.
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [desktop]);
 
   // Once birth data exists the grid is computed; before that we render the
   // fixture passed in as a prop so the layout is still visible.
@@ -299,7 +328,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   // below instead.
   useLayoutEffect(() => {
     measure();
-  }, [measure, chart, showMinor, showBazi, editing, info, activePalace?.branch]);
+  }, [measure, chart, showMinor, showMisc, showBazi, editing, info, desktop, activePalace?.branch]);
 
   useEffect(() => {
     const el = gridRef.current;
@@ -419,8 +448,17 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     setSelected((prev) => (prev === branch ? null : branch));
   }
 
-  return (
-    <div className="w-full max-w-2xl mx-auto select-none">
+  // The whole component is the same tree in both modes. Desktop Version only
+  // swaps the outer box: fixed full-screen instead of the 672px column, and a
+  // grid that fills the leftover height instead of `aspect-square`.
+  const body = (
+    <div
+      className={
+        desktop
+          ? "flex h-full w-full flex-col select-none"
+          : "w-full max-w-2xl mx-auto select-none"
+      }
+    >
       {/* legend + view toggles */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-neutral-500">
@@ -478,6 +516,29 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
           >
             Show Clash 沖
           </ToggleButton>
+          {/* Only from 1024px up. On a phone the button does not exist at all,
+              so it cannot be pressed there, and it disappears again if the
+              desktop window is narrowed — a layout this wide is useless in a
+              narrow window. */}
+          {desktop ? (
+            <button
+              type="button"
+              onClick={() => setDesktop(false)}
+              title="Tutup (Esc)"
+              className="rounded border border-neutral-300 bg-white px-2 py-1 text-[11px] text-neutral-600 transition-colors hover:bg-neutral-50"
+            >
+              ✕ Tutup
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setDesktop(true)}
+              title="Layar penuh — kotak palace melebar mengikuti layar landscape"
+              className="hidden rounded border border-neutral-300 bg-white px-2 py-1 text-[11px] text-neutral-600 transition-colors hover:bg-neutral-50 lg:inline-flex"
+            >
+              Desktop Version
+            </button>
+          )}
         </div>
       </div>
 
@@ -487,7 +548,19 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
           give it a taller box instead, taller again once minor stars are on
           (a busy palace then holds 5 two-line entries). The Si Hua overlay is
           measured in pixels, so a non-square grid is fine. */}
-      <div ref={gridRef} className={`relative w-full ${showMinor ? "h-[46rem]" : "h-[34rem]"} sm:h-auto sm:aspect-square border border-neutral-300`}>
+      {/* Desktop Version: `flex-1 min-h-0` instead of `aspect-square`, so the
+          grid takes whatever height is left in the viewport and each palace
+          comes out as a wide rectangle (the reference grid was 1855x855, i.e.
+          palaces of ~465x215, about 2.2:1). The Si Hua overlay is measured in
+          pixels by the ResizeObserver, so it follows the new box on its own. */}
+      <div
+        ref={gridRef}
+        className={
+          desktop
+            ? "relative min-h-0 w-full flex-1 border border-neutral-300"
+            : `relative w-full ${showMinor ? "h-[46rem]" : "h-[34rem]"} sm:h-auto sm:aspect-square border border-neutral-300`
+        }
+      >
         <div className="absolute inset-0 grid grid-cols-4 grid-rows-4">
           {chart.palaces.map((p) => (
             <button
@@ -498,7 +571,8 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
               onMouseLeave={() => setHovered(null)}
               style={{ gridRow: p.grid.row + 1, gridColumn: p.grid.col + 1 }}
               className={[
-                "flex flex-col items-start justify-start p-1 text-left border border-neutral-200",
+                "flex flex-col items-start justify-start text-left border border-neutral-200",
+                desktop ? "p-2" : "p-1",
                 "min-h-11 overflow-hidden transition-colors",
                 active === p.branch
                   ? sanFang ? "bg-amber-100" : "bg-amber-50"
@@ -549,10 +623,15 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                         key={s.name}
                         title={`${s.nameZh} ${s.name}`}
                         className={
-                          "shrink-0 whitespace-nowrap text-[8px] italic leading-tight " +
+                          "shrink-0 whitespace-nowrap italic leading-tight " +
+                          (desktop ? "text-[11px] " : "text-[8px] ") +
                           (SHA_STARS.has(s.name) ? "text-red-600" : "text-neutral-400/90")
                         }
                       >
+                        {/* A 465px palace has room to spell it out again; the
+                            pinyin-only form exists purely to save height in the
+                            672px layout. */}
+                        {desktop && <span className="mr-0.5">{s.nameZh}</span>}
                         {s.name}
                       </span>
                     );
@@ -596,8 +675,13 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                         // Bigger from `sm` up (+20%) at Bambang's request. On a
                         // phone the palace is ~93px wide and the pinyin already
                         // sits on its own line, so the small size stays there.
-                        ? "text-[10px] sm:text-[12px] leading-tight text-neutral-700"
-                        : "text-[9px] sm:text-[10px] leading-tight " +
+                        // Desktop Version gets another step up — the box is
+                        // more than twice as wide and its vertical space sits
+                        // mostly idle.
+                        ? (desktop
+                            ? "text-[15px] leading-tight text-neutral-700"
+                            : "text-[10px] sm:text-[12px] leading-tight text-neutral-700")
+                        : (desktop ? "text-[13px] leading-tight " : "text-[9px] sm:text-[10px] leading-tight ") +
                           // 煞星 in red. A star highlighted by an incoming Si Hua
                           // carries an inline white colour, which still wins.
                           (SHA_STARS.has(s.name) ? "text-red-600" : "text-neutral-400"))
@@ -646,10 +730,12 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                       className={
                         "truncate " + hlClass + " " +
                         (hl
-                          ? s.isMajor ? "text-[9px] sm:text-[10px]" : "text-[8px]"
+                          ? s.isMajor
+                            ? desktop ? "text-[12px]" : "text-[9px] sm:text-[10px]"
+                            : desktop ? "text-[11px]" : "text-[8px]"
                           : s.isMajor
-                            ? "text-[9px] sm:text-[10px] text-neutral-500"
-                            : "text-[8px] " +
+                            ? (desktop ? "text-[12px] text-neutral-500" : "text-[9px] sm:text-[10px] text-neutral-500")
+                            : (desktop ? "text-[11px] " : "text-[8px] ") +
                               (SHA_STARS.has(s.name) ? "text-red-500" : "text-neutral-400"))
                       }
                       style={hlStyle}
@@ -696,7 +782,8 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   className={
                     // w-full: these two are palace attributes, so they take
                     // their own line rather than flowing among the misc chips.
-                    "mt-0.5 w-full flex-col gap-0 text-[8px] leading-tight text-neutral-400 " +
+                    "mt-0.5 w-full flex-col gap-0 leading-tight text-neutral-400 " +
+                    (desktop ? "text-[11px] " : "text-[8px] ") +
                     (showMisc ? "flex" : "hidden")
                   }
                 >
@@ -720,7 +807,12 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   Da Xian palace name sit on one line, then a 3x2 grid holding
                   ganzhi / Da Xian range / Liu Nian year, and below them the
                   branch / palace name / lunar age. */}
-              <div className="mt-auto w-full shrink-0 pt-0.5 text-[8px] leading-tight text-neutral-400">
+              <div
+                className={
+                  "mt-auto w-full shrink-0 pt-0.5 leading-tight text-neutral-400 " +
+                  (desktop ? "text-[11px]" : "text-[8px]")
+                }
+              >
                 <div className="flex items-baseline justify-between gap-1 whitespace-nowrap">
                   <span />
                   <span className="flex shrink-0 flex-col items-end leading-tight">
@@ -805,7 +897,12 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   })()}
 
                   <span className="text-neutral-500">{p.branch}</span>
-                  <span className="truncate text-center text-[9px] text-neutral-700">
+                  <span
+                    className={
+                      "truncate text-center text-neutral-700 " +
+                      (desktop ? "text-[12px]" : "text-[9px]")
+                    }
+                  >
                     {p.nameZh.charAt(0)} {p.name}
                   </span>
                   {/* The year cell is clickable: it switches the chart into
@@ -845,7 +942,8 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
           <div
             style={{ gridRow: "2 / span 2", gridColumn: "2 / span 2" }}
             className={
-              "relative flex flex-col items-center overflow-y-auto text-center p-2 pb-5 bg-neutral-50 border border-neutral-200 " +
+              "relative flex flex-col items-center overflow-y-auto text-center pb-5 bg-neutral-50 border border-neutral-200 " +
+              (desktop ? "p-4 " : "p-2 ") +
               // Centred normally; top-aligned for a star reading, because a
               // centred flex child that overflows gets clipped at the TOP and
               // the first line becomes unreachable by scrolling.
@@ -944,6 +1042,71 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     Ubah data
                   </button>
                 </>
+            )}
+
+            {/* Desktop Version only: the palace panel that normally flows
+                below the grid is shown here as well, because in a full-screen
+                layer there is nothing below the grid to scroll to. Exactly the
+                same content as the panel underneath — no new design. */}
+            {desktop && activePalace && flying && !editing && (
+              <div className="mt-3 w-full border-t border-neutral-200 pt-2 text-left">
+                <div className="mb-1 text-[12px] font-medium text-neutral-800">
+                  {activePalace.nameZh} {activePalace.name} — flying Si Hua ({activePalace.stem})
+                </div>
+                <div className="mb-2 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
+                  {activePalace.stars.map((s) => (
+                    <span
+                      key={s.name}
+                      className={
+                        "whitespace-nowrap " +
+                        (s.isMajor
+                          ? "text-neutral-800"
+                          : s.tier === "misc"
+                            ? "italic text-neutral-400"
+                            : "text-neutral-600")
+                      }
+                    >
+                      {s.nameZh} <span className="text-neutral-500">{s.name}</span>
+                      {s.natalSiHua && (
+                        <span
+                          className="ml-1 font-medium"
+                          style={{ color: HUA_COLOR[s.natalSiHua.toLowerCase() as "lu" | "quan" | "ke" | "ji"] }}
+                        >
+                          {s.natalSiHua}
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                  {activePalace.stars.length === 0 && (
+                    <span className="text-neutral-400">Palace kosong (無主星)</span>
+                  )}
+                </div>
+                <ul className="space-y-0.5 text-[11px]">
+                  {(["lu", "quan", "ke", "ji"] as const).map((k) => {
+                    const target = flying[k];
+                    const isSelf = target.palace === activePalace.name;
+                    return (
+                      <li key={k} className="flex flex-wrap items-center gap-x-1.5 text-neutral-700">
+                        <span
+                          className="inline-block h-2 w-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: HUA_COLOR[k] }}
+                        />
+                        <span className="font-medium whitespace-nowrap" style={{ color: HUA_COLOR[k] }}>
+                          {HUA_LABEL[k]}
+                        </span>
+                        <span className="whitespace-nowrap">
+                          {STAR_ZH_BY_NAME.get(target.star) ?? ""} {target.star}
+                        </span>
+                        <span className="text-neutral-400">→</span>
+                        <span className="whitespace-nowrap">
+                          {target.palace ?? "not placed"}
+                          {isSelf && <span className="ml-1 text-neutral-400">(自化)</span>}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             )}
 
             {/* Bottom row of the centre block: it travels with the chart, so
@@ -1165,11 +1328,13 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
       </div>
 
       {/* Ba Zi (four pillars) — toggled by "Show Ba Zi" */}
-      {showBazi && info && <BaziPanel info={info} />}
+      {showBazi && info && !desktop && <BaziPanel info={info} />}
 
       {/* detail panel — flows normally below the grid on every screen size,
-          so it works identically on mobile without fixed positioning. */}
-      {activePalace && flying && (
+          so it works identically on mobile without fixed positioning. In the
+          full-screen layer the grid already fills the viewport, so the same
+          panel is rendered inside the centre block instead. */}
+      {!desktop && activePalace && flying && (
         <div className="mt-4 border border-neutral-200 p-4 text-sm">
           <div className="font-medium text-neutral-800 mb-2">
             {activePalace.nameZh} {activePalace.name} — flying Si Hua ({activePalace.stem})
@@ -1253,4 +1418,15 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
       )}
     </div>
   );
+
+  // A full-screen layer on the same page keeps every piece of state alive;
+  // `window.open` would not.
+  if (desktop) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col overflow-auto bg-white p-3">
+        {body}
+      </div>
+    );
+  }
+  return body;
 }
