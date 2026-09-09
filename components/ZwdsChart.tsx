@@ -106,7 +106,15 @@ const BRIGHTNESS_COLOR: Record<1 | 2 | 3 | 4 | 5, string> = {
   5: "#1c1c1c", // black — 陷, dimmest
 };
 
-function BrightnessMark({ level }: { level: 1 | 2 | 3 | 4 | 5 | null }) {
+function BrightnessMark({
+  level,
+  inheritSize,
+}: {
+  level: 1 | 2 | 3 | 4 | 5 | null;
+  /** Desktop Version sets one font size on the whole star list; the number
+      inherits it instead of pinning its own. */
+  inheritSize?: boolean;
+}) {
   if (level === null) return null;
   return (
     <span
@@ -118,7 +126,13 @@ function BrightnessMark({ level }: { level: 1 | 2 | 3 | 4 | 5 | null }) {
         className="inline-block w-[6px] h-[6px] rounded-full"
         style={{ backgroundColor: BRIGHTNESS_COLOR[level] }}
       />
-      <span className="text-[9px] leading-none text-neutral-500">{level}</span>
+      <span
+        className={
+          (inheritSize ? "" : "text-[9px] ") + "leading-none text-neutral-500"
+        }
+      >
+        {level}
+      </span>
     </span>
   );
 }
@@ -310,6 +324,23 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     });
   }, []);
 
+  /**
+   * Desktop Version uses ONE font size for the whole star list — no bigger and
+   * smaller — at Bambang's request (2026-09-09). A single fixed number does not
+   * work: measured on the 1975 chart with minor + misc + D + A all on, a 1440
+   * wide screen only survives 12px while a 1920 one takes 16px comfortably. So
+   * the size follows the palace height, which is what actually runs out.
+   *
+   * palaceHeight / 17.5 comes from those measurements (209px → 12, 254px → 14.5)
+   * and is clamped to 11–16. The grid's height does not depend on the font, so
+   * this cannot feed back on itself; `starFont` is in the measure effect's deps
+   * so the Si Hua anchors are re-measured once after the size settles.
+   */
+  const starFont = useMemo(() => {
+    if (!desktop || !geom) return null;
+    return Math.min(16, Math.max(11, Math.round(geom.h / 4 / 17.5)));
+  }, [desktop, geom]);
+
   const palaceByBranch = useMemo(() => {
     const map = new Map<EarthlyBranch, Palace>();
     chart.palaces.forEach((p) => map.set(p.branch, p));
@@ -359,7 +390,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     // naming them in the dep array would read them before initialisation.
   }, [
     measure, chart, showMinor, showMisc, showBazi, editing, info, desktop,
-    decadeStart, selectedYear, liuNianStem, activePalace?.branch,
+    decadeStart, selectedYear, liuNianStem, starFont, activePalace?.branch,
   ]);
 
   useEffect(() => {
@@ -682,7 +713,12 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   two stars ended up pushed to the top and bottom of a huge gap.
                   content-start packs the lines together and leaves the slack
                   below, where it belongs. */}
-              <div className="mt-1 flex w-full min-h-0 flex-1 flex-wrap content-start items-baseline gap-x-1.5 overflow-y-auto">
+              <div
+                className="mt-1 flex w-full min-h-0 flex-1 flex-wrap content-start items-baseline gap-x-1.5 overflow-y-auto"
+                // Desktop Version: every descendant inherits this, so the
+                // per-element sizes below are dropped in that mode.
+                style={starFont ? { fontSize: `${starFont}px` } : undefined}
+              >
                 {/* One star = one line. The pinyin is the only part allowed to
                     shrink/truncate; brightness and the Si Hua tag must never
                     wrap onto their own line, or a narrow palace turns into a
@@ -706,7 +742,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                         title={`${s.nameZh} ${s.name}`}
                         className={
                           "shrink-0 whitespace-nowrap italic leading-tight " +
-                          (desktop ? "text-[11px] " : "text-[8px] ") +
+                          (desktop ? "" : "text-[8px] ") +
                           (SHA_STARS.has(s.name) ? "text-red-600" : "text-neutral-400/90")
                         }
                       >
@@ -761,9 +797,9 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                         // more than twice as wide and its vertical space sits
                         // mostly idle.
                         ? (desktop
-                            ? "text-[15px] leading-tight text-neutral-700"
+                            ? "leading-tight text-neutral-700"
                             : "text-[10px] sm:text-[12px] leading-tight text-neutral-700")
-                        : (desktop ? "text-[13px] leading-tight " : "text-[9px] sm:text-[10px] leading-tight ") +
+                        : (desktop ? "leading-tight " : "text-[9px] sm:text-[10px] leading-tight ") +
                           // 煞星 in red. A star highlighted by an incoming Si Hua
                           // carries an inline white colour, which still wins.
                           (SHA_STARS.has(s.name) ? "text-red-600" : "text-neutral-400"))
@@ -813,11 +849,11 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                         "truncate " + hlClass + " " +
                         (hl
                           ? s.isMajor
-                            ? desktop ? "text-[12px]" : "text-[9px] sm:text-[10px]"
-                            : desktop ? "text-[11px]" : "text-[8px]"
+                            ? desktop ? "" : "text-[9px] sm:text-[10px]"
+                            : desktop ? "" : "text-[8px]"
                           : s.isMajor
-                            ? (desktop ? "text-[12px] text-neutral-500" : "text-[9px] sm:text-[10px] text-neutral-500")
-                            : (desktop ? "text-[11px] " : "text-[8px] ") +
+                            ? (desktop ? "text-neutral-500" : "text-[9px] sm:text-[10px] text-neutral-500")
+                            : (desktop ? "" : "text-[8px] ") +
                               (SHA_STARS.has(s.name) ? "text-red-500" : "text-neutral-400"))
                       }
                       style={hlStyle}
@@ -825,7 +861,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                       {s.name}
                     </span>
                     <span className="hidden sm:inline-flex shrink-0">
-                      <BrightnessMark level={s.brightness} />
+                      <BrightnessMark level={s.brightness} inheritSize={desktop} />
                     </span>
                     {/* Normally the Si Hua tags are pushed to the right edge of
                         the palace (ml-auto), which reads well in a 166px box. In
@@ -840,7 +876,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     >
                       {s.natalSiHua && (
                         <span
-                          className="ml-1 text-[9px] font-medium"
+                          className={"ml-1 font-medium " + (desktop ? "" : "text-[9px]")}
                           style={{ color: HUA_COLOR[s.natalSiHua.toLowerCase() as "lu" | "quan" | "ke" | "ji"] }}
                         >
                           {s.natalSiHua}
@@ -848,7 +884,10 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                       )}
                       {s.selfSiHua && (
                         <span
-                          className="ml-1 text-[8px] font-medium rounded-sm border px-[2px] leading-[1.4]"
+                          className={
+                            "ml-1 font-medium rounded-sm border px-[2px] leading-[1.4] " +
+                            (desktop ? "" : "text-[8px]")
+                          }
                           style={{
                             color: HUA_COLOR[s.selfSiHua.toLowerCase() as "lu" | "quan" | "ke" | "ji"],
                             borderColor: HUA_COLOR[s.selfSiHua.toLowerCase() as "lu" | "quan" | "ke" | "ji"],
@@ -864,7 +903,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                       {layerSiHua.get(s.name)?.map((t) => (
                         <span
                           key={t.layer + t.hua}
-                          className="ml-1 text-[11px] font-medium"
+                          className="ml-1 font-medium"
                           style={{ color: LAYER_COLOR[t.layer] }}
                           title={
                             t.layer === "D"
@@ -893,7 +932,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     // w-full: these two are palace attributes, so they take
                     // their own line rather than flowing among the misc chips.
                     "mt-0.5 w-full flex-col gap-0 leading-tight text-neutral-400 " +
-                    (desktop ? "text-[11px] " : "text-[8px] ") +
+                    (desktop ? "" : "text-[8px] ") +
                     (showMisc ? "flex" : "hidden")
                   }
                 >
