@@ -8,6 +8,7 @@ import BirthForm from "./BirthForm";
 import BaziPanel from "./BaziPanel";
 import { computeBirthInfo, type BirthInfo } from "../lib/birthInfo";
 import { calculateChart } from "../lib/calculateChart";
+import { STAR_MEANINGS } from "../lib/starMeanings";
 
 // ============================================================
 // Design notes (read before extending):
@@ -38,6 +39,21 @@ const HUA_COLOR: Record<"lu" | "quan" | "ke" | "ji", string> = {
   ke: "#d97706",   // amber-600   — reputation / recognition
   ji: "#e11d48",   // rose-600    — obstruction / fixation
 };
+
+/**
+ * 煞星 — the harmful stars, drawn in red so a troubled palace is obvious at a
+ * glance. Six of them are aux tier (visible with "Show Minor Star"); 天刑 is
+ * misc tier (visible with "Show Misc Star").
+ */
+const SHA_STARS = new Set([
+  "Qing Yang", // 擎羊
+  "Tuo Luo",   // 陀羅
+  "Huo Xing",  // 火星
+  "Ling Xing", // 鈴星
+  "Di Kong",   // 地空
+  "Di Jie",    // 地劫
+  "Tian Xing", // 天刑
+]);
 
 // Self-hosted at build time by next/font — no runtime request to Google.
 const brandFont = Cormorant_Garamond({ subsets: ["latin"], weight: ["500", "600"], display: "swap" });
@@ -141,6 +157,17 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   const [decadeStart, setDecadeStart] = useState<number | null>(null);
   /** Selected Liu Nian year; null = decade mode (years + ages in the footer). */
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  /** Selected 流月 (lunar month 1..12) within the selected year; null = year mode. */
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  /**
+   * Star whose reading is showing in the centre block. Set by CLICKING a star,
+   * never by hovering — the centre must not change just because the cursor
+   * crossed the grid. Clicking the same star again, or the ✕, restores the
+   * birth data.
+   */
+  const [selectedStar, setSelectedStar] = useState<
+    { name: string; nameZh: string; palace: string; text: string } | null
+  >(null);
   /** True while showing the chart auto-generated for the visitor's clock. */
   const [isNow, setIsNow] = useState(false);
 
@@ -351,6 +378,24 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     return { year: selectedYear, branch: BRANCH_ORDER[yearBranchIdx], months, names };
   }, [info, selectedYear, chart]);
 
+  // ── 流月 ────────────────────────────────────────────────────────────────
+  // Picking one of the M1..M12 cells makes that palace 流月命宮; the twelve
+  // 流月十二宮 then run anticlockwise from it, exactly like the natal, decade
+  // and annual rings. Without a chosen month there is no 流月命宮, so no labels.
+  const monthly = useMemo(() => {
+    if (!annual || selectedMonth == null) return null;
+    // Plain lookup over BRANCH_ORDER — assigning inside a forEach callback
+    // would leave TypeScript narrowing the variable to null.
+    const branch = BRANCH_ORDER.find((b) => annual.months.get(b) === selectedMonth);
+    if (!branch) return null;
+    const i = BRANCH_ORDER.indexOf(branch);
+    const names = new Map<EarthlyBranch, string>();
+    chart.palaces.forEach((_, offset) => {
+      names.set(BRANCH_ORDER[((i - offset) % 12 + 12) % 12], chart.palaces[offset].name);
+    });
+    return { month: selectedMonth, branch, names };
+  }, [annual, selectedMonth, chart]);
+
   const flying = useMemo(() => {
     if (!activePalace) return null;
     return resolveFlyingSiHua(activePalace.stem, (starName) => {
@@ -466,7 +511,15 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
               ].join(" ")}
             >
 
-              <div className="mt-1 space-y-0.5 w-full">
+              {/* The star list is the only part allowed to scroll. It takes the
+                  leftover height (flex-1 + min-h-0) so the footer below it can
+                  never be pushed past the bottom edge of the palace — that was
+                  the old bug: with `mt-auto` alone, a long list simply shoved
+                  the footer out of an `overflow-hidden` box.
+                  Major and minor stars keep one line each (they carry the
+                  brightness dot and the Si Hua tag); misc stars flow inline,
+                  several per line, which is what buys the height back. */}
+              <div className="mt-1 flex w-full min-h-0 flex-1 flex-wrap items-baseline gap-x-1.5 overflow-y-auto">
                 {/* One star = one line. The pinyin is the only part allowed to
                     shrink/truncate; brightness and the Si Hua tag must never
                     wrap onto their own line, or a narrow palace turns into a
@@ -476,6 +529,27 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     s.tier === "misc" ? showMisc : s.isMajor || showMinor
                   )
                   .map((s) => {
+                  // Misc tier: pinyin only, italic, flowing inline. 漢字 and the
+                  // full name live in the tooltip and in the palace detail
+                  // panel, so nothing is lost on a touch screen where there is
+                  // no hover. Measured on Bambang's chart at 672px with minor +
+                  // misc both on: one line per misc star overflowed 8 palaces
+                  // by up to 46px; flowing them inline brings that to 2 palaces
+                  // by 13px, which the pinned footer absorbs.
+                  if (s.tier === "misc") {
+                    return (
+                      <span
+                        key={s.name}
+                        title={`${s.nameZh} ${s.name}`}
+                        className={
+                          "shrink-0 whitespace-nowrap text-[8px] italic leading-tight " +
+                          (SHA_STARS.has(s.name) ? "text-red-600" : "text-neutral-400/90")
+                        }
+                      >
+                        {s.name}
+                      </span>
+                    );
+                  }
                   // Highlighted when the ACTIVE palace sends a transformation
                   // to this star: filled with that Si Hua's colour, white text.
                   const hl = huaOfStar.get(s.name);
@@ -483,20 +557,43 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     ? { backgroundColor: HUA_COLOR[hl], color: "#fff" }
                     : undefined;
                   const hlClass = hl ? "rounded-sm px-[3px]" : "";
+                  // Reading for this star IN THIS PALACE. Missing for the misc
+                  // tier (no text written for those yet), and such a star stays
+                  // unclickable rather than opening an empty panel.
+                  const meaning = STAR_MEANINGS[s.name]?.[p.name];
                   return (
                   <div
                     key={s.name}
+                    onClick={
+                      meaning
+                        ? () =>
+                            // No stopPropagation: the click deliberately falls
+                            // through to the palace too, so one tap gives both
+                            // the flying Si Hua lines and the star's reading.
+                            setSelectedStar((cur) =>
+                              cur && cur.name === s.name && cur.palace === p.name
+                                ? null
+                                : { name: s.name, nameZh: s.nameZh, palace: p.name, text: meaning }
+                            )
+                        : undefined
+                    }
+                    title={meaning ? "Klik untuk penjelasannya" : undefined}
                     className={
+                      (meaning ? "cursor-pointer rounded-sm hover:bg-amber-100/70 " : "") +
                       // Narrow screens stack the pinyin under the Chinese name;
                       // from `sm` up there is room for one line per star.
-                      "flex flex-col sm:flex-row sm:items-baseline sm:gap-1 " +
+                      // `w-full` claims a whole line inside the wrapping list,
+                      // so only the misc chips share lines with each other.
+                      "w-full flex flex-col sm:flex-row sm:items-baseline sm:gap-1 " +
                       (s.isMajor
-                        ? "text-[10px] leading-tight text-neutral-700"
-                        : s.tier === "misc"
-                          // Italic marks the misc tier at a glance, the way
-                          // Bambang's reference chart does.
-                          ? "text-[9px] italic leading-tight text-neutral-400/90"
-                          : "text-[9px] leading-tight text-neutral-400")
+                        // Bigger from `sm` up (+20%) at Bambang's request. On a
+                        // phone the palace is ~93px wide and the pinyin already
+                        // sits on its own line, so the small size stays there.
+                        ? "text-[10px] sm:text-[12px] leading-tight text-neutral-700"
+                        : "text-[9px] sm:text-[10px] leading-tight " +
+                          // 煞星 in red. A star highlighted by an incoming Si Hua
+                          // carries an inline white colour, which still wins.
+                          (SHA_STARS.has(s.name) ? "text-red-600" : "text-neutral-400"))
                     }
                   >
                     <span className="flex items-baseline gap-1 shrink-0">
@@ -542,8 +639,11 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                       className={
                         "truncate " + hlClass + " " +
                         (hl
-                          ? s.isMajor ? "text-[9px]" : "text-[8px]"
-                          : s.isMajor ? "text-[9px] text-neutral-500" : "text-[8px] text-neutral-400")
+                          ? s.isMajor ? "text-[9px] sm:text-[10px]" : "text-[8px]"
+                          : s.isMajor
+                            ? "text-[9px] sm:text-[10px] text-neutral-500"
+                            : "text-[8px] " +
+                              (SHA_STARS.has(s.name) ? "text-red-500" : "text-neutral-400"))
                       }
                       style={hlStyle}
                     >
@@ -587,18 +687,20 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     until "Show Misc Star" is on. */}
                 <div
                   className={
-                    "mt-0.5 flex-col gap-0 text-[8px] leading-tight text-neutral-400 " +
+                    // w-full: these two are palace attributes, so they take
+                    // their own line rather than flowing among the misc chips.
+                    "mt-0.5 w-full flex-col gap-0 text-[8px] leading-tight text-neutral-400 " +
                     (showMisc ? "flex" : "hidden")
                   }
                 >
                   {p.boShi && (
-                    <span className="flex items-baseline gap-0.5" title="博士十二神">
+                    <span className="flex items-baseline gap-0.5" title="Bo Shi">
                       <span>{p.boShi.nameZh}</span>
                       <span>{p.boShi.name}</span>
                     </span>
                   )}
                   {p.changSheng && (
-                    <span className="flex items-baseline gap-0.5" title="長生十二神">
+                    <span className="flex items-baseline gap-0.5" title="Chang Sheng">
                       <span>{p.changSheng.nameZh}</span>
                       <span>{p.changSheng.name}</span>
                     </span>
@@ -611,17 +713,30 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   Da Xian palace name sit on one line, then a 3x2 grid holding
                   ganzhi / Da Xian range / Liu Nian year, and below them the
                   branch / palace name / lunar age. */}
-              <div className="mt-auto w-full pt-0.5 text-[8px] leading-tight text-neutral-400">
+              <div className="mt-auto w-full shrink-0 pt-0.5 text-[8px] leading-tight text-neutral-400">
                 <div className="flex items-baseline justify-between gap-1 whitespace-nowrap">
                   <span />
                   <span className="flex shrink-0 flex-col items-end leading-tight">
+                    {monthly?.names.get(p.branch) && (
+                      <span className="text-teal-600" title="流月十二宮">
+                        M{monthly.names.get(p.branch)}
+                      </span>
+                    )}
                     {annual?.names.get(p.branch) && (
                       <span className="text-violet-600" title="流年十二宮">
                         A{annual.names.get(p.branch)}
                       </span>
                     )}
                     {activeDecade?.names.get(p.branch) && (
-                      <span className="text-rose-600" title="大限十二宮">
+                      <span
+                        // Three stacked labels get tight on a phone, so in
+                        // month mode the outermost ring (D) drops out below sm.
+                        className={[
+                          "text-rose-600",
+                          monthly ? "hidden sm:inline" : "",
+                        ].join(" ")}
+                        title="大限十二宮"
+                      >
                         D{activeDecade.names.get(p.branch)}
                       </span>
                     )}
@@ -638,6 +753,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                       e.stopPropagation();
                       setDecadeStart(p.ageRange[0]);
                       setSelectedYear(null); // clicking a decade leaves year mode
+                      setSelectedMonth(null); // ...and month mode with it
                     }}
                     title={`Da Xian ${p.ageRange[0]}-${p.ageRange[1]} — klik untuk pilih dekade ini`}
                     className={[
@@ -661,10 +777,20 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     }
                     const m = annual.months.get(p.branch);
                     if (!m) return <span />;
+                    const isSelM = monthly?.month === m;
                     return (
                       <span
-                        className="text-right text-neutral-500"
-                        title={`流月: bulan lunar ke-${m} tahun ${annual.year} (bukan bulan Masehi)`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedMonth((cur) => (cur === m ? null : m));
+                        }}
+                        className={[
+                          "cursor-pointer rounded px-0.5 text-right",
+                          isSelM
+                            ? "bg-teal-200 font-medium text-neutral-800"
+                            : "text-neutral-500 hover:bg-neutral-200",
+                        ].join(" ")}
+                        title={`流月: bulan lunar ke-${m} tahun ${annual.year} (bukan bulan Masehi). Klik untuk pasang 流月十二宮.`}
                       >
                         M{m}
                       </span>
@@ -686,6 +812,8 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedYear((y) => (y === cell.year ? null : cell.year));
+                          // A new year re-seeds 流年斗君, so the old month is void.
+                          setSelectedMonth(null);
                         }}
                         title={`${cell.year} — usia ${cell.age} (lunar). Klik untuk lihat bulanannya.`}
                         className={[
@@ -709,7 +837,13 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
           {/* center info panel spans the 2x2 middle block */}
           <div
             style={{ gridRow: "2 / span 2", gridColumn: "2 / span 2" }}
-            className="relative flex flex-col items-center justify-center overflow-y-auto text-center p-2 pb-5 bg-neutral-50 border border-neutral-200"
+            className={
+              "relative flex flex-col items-center overflow-y-auto text-center p-2 pb-5 bg-neutral-50 border border-neutral-200 " +
+              // Centred normally; top-aligned for a star reading, because a
+              // centred flex child that overflows gets clipped at the TOP and
+              // the first line becomes unreachable by scrolling.
+              (selectedStar ? "justify-start" : "justify-center")
+            }
           >
             {/* The centre block always shows the birth data. Hovering a palace
                 must not wipe it out — the active palace's own details live in
@@ -725,8 +859,41 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     setInfo(next);
                     setEditing(false);
                     setIsNow(false);
+                    // A new chart means new palaces; the old reading is stale.
+                    setSelectedStar(null);
                   }}
                 />
+              ) : selectedStar ? (
+                // A star was clicked. This is the one thing allowed to replace
+                // the birth data, and only ever by an explicit click — the ✕
+                // (or clicking that star again) brings the birth data back.
+                <div className="w-full text-left">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-[13px] font-medium leading-tight text-neutral-800">
+                        {selectedStar.nameZh} {selectedStar.name}
+                      </div>
+                      <div className="text-[10px] leading-tight text-neutral-500">
+                        di palace {selectedStar.palace}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStar(null)}
+                      title="Tutup, kembali ke data kelahiran"
+                      className="shrink-0 rounded px-1 text-[12px] leading-none text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <p className="mt-1.5 text-[11px] leading-snug text-neutral-700">
+                    {selectedStar.text}
+                  </p>
+                  <p className="mt-2 text-[9px] leading-snug text-neutral-400">
+                    Makna dasar menurut palace. Belum memperhitungkan terang-gelap,
+                    Si Hua, dan bintang pendamping.
+                  </p>
+                </div>
               ) : showBazi ? (
                 <>
                   <BaziPanel info={info} compact />
@@ -1004,6 +1171,40 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
           <div className="font-medium text-neutral-800 mb-2">
             {activePalace.nameZh} {activePalace.name} — flying Si Hua ({activePalace.stem})
           </div>
+
+          {/* Every star in this palace, spelled out. In the grid the misc tier
+              shows pinyin only to save height; this list is where the 漢字 and
+              the full set live, and unlike a tooltip it works on a touch
+              screen. */}
+          <div className="mb-3 flex flex-wrap gap-x-3 gap-y-0.5 border-b border-neutral-200 pb-2 text-xs">
+            {activePalace.stars.map((s) => (
+              <span
+                key={s.name}
+                className={
+                  "whitespace-nowrap " +
+                  (s.isMajor
+                    ? "text-neutral-800"
+                    : s.tier === "misc"
+                      ? "italic text-neutral-400"
+                      : "text-neutral-600")
+                }
+              >
+                {s.nameZh} <span className="text-neutral-500">{s.name}</span>
+                {s.natalSiHua && (
+                  <span
+                    className="ml-1 font-medium"
+                    style={{ color: HUA_COLOR[s.natalSiHua.toLowerCase() as "lu" | "quan" | "ke" | "ji"] }}
+                  >
+                    {s.natalSiHua}
+                  </span>
+                )}
+              </span>
+            ))}
+            {activePalace.stars.length === 0 && (
+              <span className="text-neutral-400">Palace kosong (無主星)</span>
+            )}
+          </div>
+
           <ul className="space-y-1">
             {(["lu", "quan", "ke", "ji"] as const).map((k) => {
               const target = flying[k];
