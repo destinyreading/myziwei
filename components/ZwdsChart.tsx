@@ -941,7 +941,7 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
 
             {/* Bottom row of the centre block: it travels with the chart, so
                 it stays visible in any screenshot of the grid. */}
-            <div className="absolute inset-x-2 bottom-1 flex items-end justify-between gap-2">
+            <div className="absolute inset-x-2 bottom-1 flex items-end gap-2">
               <a
                 href="https://www.destinyreading.id"
                 target="_blank"
@@ -950,14 +950,10 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
               >
                 © www.destinyreading.id
               </a>
-              <button
-                type="button"
-                disabled
-                title="Transit chart (大限 / 流年) — belum dibuat"
-                className="text-[10px] leading-none text-neutral-300 cursor-not-allowed"
-              >
-                Transit Chart →
-              </button>
+              {/* "Transit Chart →" used to live here as a doorway to a separate
+                  decade view. It is gone: 大限 / 流年 / 流月 are now selected in
+                  the palace footer itself, so a separate transit screen has
+                  nothing left to do. */}
             </div>
           </div>
         </div>
