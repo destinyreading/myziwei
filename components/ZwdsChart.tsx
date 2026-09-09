@@ -290,13 +290,18 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
 
   const activeDecade = useMemo(() => {
     if (!info) return null;
+    // The decade containing today's age; when the age falls outside every
+    // range — a chart cast for someone born today is age 1, while the ranges
+    // start at the Ju number — fall back to the first decade instead of
+    // dropping the whole Da Xian / Liu Nian layer.
+    const firstStart = Math.min(...chart.palaces.map((p) => p.ageRange[0]));
     const start =
       decadeStart ??
       (lunarAgeNow != null
         ? chart.palaces.find(
             (p) => lunarAgeNow >= p.ageRange[0] && lunarAgeNow <= p.ageRange[1]
-          )?.ageRange[0]
-        : undefined);
+          )?.ageRange[0] ?? firstStart
+        : firstStart);
     if (start == null) return null;
     const palace = chart.palaces.find((p) => p.ageRange[0] === start);
     if (!palace) return null;
