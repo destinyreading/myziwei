@@ -519,7 +519,14 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   Major and minor stars keep one line each (they carry the
                   brightness dot and the Si Hua tag); misc stars flow inline,
                   several per line, which is what buys the height back. */}
-              <div className="mt-1 flex w-full min-h-0 flex-1 flex-wrap items-baseline gap-x-1.5 overflow-y-auto">
+              {/* content-start is NOT optional: a wrapping flex container whose
+                  height exceeds its content defaults to align-content: stretch,
+                  which shares the leftover height out among the lines. With
+                  flex-1 giving this box all the spare height of the palace,
+                  two stars ended up pushed to the top and bottom of a huge gap.
+                  content-start packs the lines together and leaves the slack
+                  below, where it belongs. */}
+              <div className="mt-1 flex w-full min-h-0 flex-1 flex-wrap content-start items-baseline gap-x-1.5 overflow-y-auto">
                 {/* One star = one line. The pinyin is the only part allowed to
                     shrink/truncate; brightness and the Si Hua tag must never
                     wrap onto their own line, or a narrow palace turns into a
