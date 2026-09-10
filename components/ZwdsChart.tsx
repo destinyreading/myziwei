@@ -279,7 +279,9 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   // its palace: two transformations pointing at the same palace would other-
   // wise be drawn as one overlapping line. We measure each rendered star row
   // and draw in pixel space.
-  const gridRef = useRef<HTMLDivElement>(null);
+  // Mutable (`| null` in the type argument) because the callback ref below
+  // assigns to it; a plain useRef<HTMLDivElement>(null) is read-only.
+  const gridRef = useRef<HTMLDivElement | null>(null);
   const starRefs = useRef(new Map<string, HTMLElement>());
   const [geom, setGeom] = useState<{
     w: number;
@@ -287,11 +289,19 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     stars: Record<string, { x: number; y: number; left: number; right: number }>;
   } | null>(null);
 
+  /** Room the layer leaves for the grid; see measure(). */
+  const [availH, setAvailH] = useState<number | null>(null);
+
   const measure = useCallback(() => {
     const el = gridRef.current;
     if (!el) return;
     const box = el.getBoundingClientRect();
     if (!box.width || !box.height) return;
+    // How much vertical room the layer gives the grid. Taken from the grid's
+    // TOP plus the viewport, never from the grid's own height — in Desktop
+    // Version the grid is allowed to grow past the screen, and measuring its
+    // height here would feed that growth back into the font size.
+    setAvailH(Math.max(240, Math.round(window.innerHeight - box.top - 12)));
     const stars: Record<string, { x: number; y: number; left: number; right: number }> = {};
     starRefs.current.forEach((node, name) => {
       const r = node.getBoundingClientRect();
@@ -337,9 +347,18 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
    * so the Si Hua anchors are re-measured once after the size settles.
    */
   const starFont = useMemo(() => {
-    if (!desktop || !geom) return null;
-    return Math.min(16, Math.max(11, Math.round(geom.h / 4 / 17.5)));
-  }, [desktop, geom]);
+    if (!desktop || !availH || !geom) return null;
+    // Height is usually what runs out, but not always: an iPad rotated to
+    // portrait has plenty of height and a narrow palace, and at 16px five
+    // pinyin names were being truncated ("Tian Liang" -> "Tian..."). So the
+    // size is capped by whichever of the two runs out first. Measured: at a
+    // 193px palace truncation stops at 11px, i.e. the same 17.5 divisor that
+    // the height calibration produced.
+    // geom.w cannot grow with the font (the grid never gets wider than the
+    // viewport), so this stays free of feedback.
+    const limit = Math.min(availH / 4, geom.w / 4);
+    return Math.min(16, Math.max(11, Math.round(limit / 17.5)));
+  }, [desktop, availH, geom]);
 
   const palaceByBranch = useMemo(() => {
     const map = new Map<EarthlyBranch, Palace>();
@@ -390,15 +409,46 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     // naming them in the dep array would read them before initialisation.
   }, [
     measure, chart, showMinor, showMisc, showBazi, editing, info, desktop,
-    decadeStart, selectedYear, liuNianStem, starFont, activePalace?.branch,
+    decadeStart, selectedYear, liuNianStem, starFont, availH, activePalace?.branch,
   ]);
 
+  /**
+   * Attach the ResizeObserver through a CALLBACK ref, not a mount-time effect.
+   * Opening Desktop Version re-parents the whole tree into the full-screen
+   * layer, so React unmounts the grid and mounts a NEW node. A `useEffect` that
+   * observed `gridRef.current` once kept watching the OLD, detached node — and
+   * from then on no resize was ever measured again: after entering the layer,
+   * rotating an iPad or resizing the window left `geom` stale (wrong star
+   * anchors for the Si Hua lines) and the font frozen at its previous size.
+   * A callback ref runs again for every node React gives us, so the observer
+   * always follows the element that is actually on screen.
+   */
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const setGridRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      gridRef.current = el;
+      observerRef.current?.disconnect();
+      observerRef.current = null;
+      if (el && typeof ResizeObserver !== "undefined") {
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        observerRef.current = ro;
+      }
+      if (el) measure();
+    },
+    [measure]
+  );
+
+  // Rotating a tablet fires `resize` reliably even when the box happens to end
+  // up the same size; cheap belt and braces alongside the observer.
   useEffect(() => {
-    const el = gridRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
+    const onResize = () => measure();
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+    };
   }, [measure]);
 
   // ── 大限 / 流年 ──────────────────────────────────────────────────────────
@@ -661,20 +711,42 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
           give it a taller box instead, taller again once minor stars are on
           (a busy palace then holds 5 two-line entries). The Si Hua overlay is
           measured in pixels, so a non-square grid is fine. */}
-      {/* Desktop Version: `flex-1 min-h-0` instead of `aspect-square`, so the
-          grid takes whatever height is left in the viewport and each palace
-          comes out as a wide rectangle (the reference grid was 1855x855, i.e.
-          palaces of ~465x215, about 2.2:1). The Si Hua overlay is measured in
-          pixels by the ResizeObserver, so it follows the new box on its own. */}
+      {/* Desktop Version: the grid fills the layer instead of being square, so
+          each palace comes out as a wide rectangle. Its rows are
+          `minmax(quarter, auto)`: normally a quarter of the available height
+          each, but a row GROWS when its busiest palace needs more. On a short
+          screen — an iPad in landscape with every layer switched on — the grid
+          then becomes taller than the viewport and the whole layer scrolls,
+          which is one ordinary page scroll. The old behaviour clipped the star
+          list inside each palace and left it scrollable on its own; that works
+          with a mouse but not by touch, because the palace is a <button> and
+          iOS treats a drag inside it as a tap. Star names simply vanished.
+          `availH` comes from the viewport, never from this box, so growth here
+          can never feed back into the font size. */}
       <div
-        ref={gridRef}
+        ref={setGridRef}
         className={
           desktop
-            ? "relative min-h-0 w-full flex-1 border border-neutral-300"
+            ? "relative w-full shrink-0 border border-neutral-300"
             : `relative w-full ${showMinor ? "h-[46rem]" : "h-[34rem]"} sm:h-auto sm:aspect-square border border-neutral-300`
         }
+        style={desktop && availH ? { minHeight: availH } : undefined}
       >
-        <div className="absolute inset-0 grid grid-cols-4 grid-rows-4">
+        <div
+          className={
+            desktop
+              ? "grid w-full grid-cols-4"
+              : "absolute inset-0 grid grid-cols-4 grid-rows-4"
+          }
+          style={
+            desktop && availH
+              ? {
+                  minHeight: availH,
+                  gridTemplateRows: `repeat(4, minmax(${Math.floor(availH / 4)}px, auto))`,
+                }
+              : undefined
+          }
+        >
           {chart.palaces.map((p) => (
             <button
               key={p.branch}
@@ -686,7 +758,8 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
               className={[
                 "flex flex-col items-start justify-start text-left border border-neutral-200",
                 desktop ? "p-2" : "p-1",
-                "min-h-11 overflow-hidden transition-colors",
+                "min-h-11 transition-colors",
+                desktop ? "" : "overflow-hidden",
                 active === p.branch
                   ? sanFang ? "bg-amber-100" : "bg-amber-50"
                   : sanFang?.trine.has(p.branch)
@@ -714,7 +787,12 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   content-start packs the lines together and leaves the slack
                   below, where it belongs. */}
               <div
-                className="mt-1 flex w-full min-h-0 flex-1 flex-wrap content-start items-baseline gap-x-1.5 overflow-y-auto"
+                className={
+                  "mt-1 flex w-full flex-1 flex-wrap content-start items-baseline gap-x-1.5 " +
+                  // Desktop Version grows the row instead of scrolling inside
+                  // the palace — see the note on the grid above.
+                  (desktop ? "" : "min-h-0 overflow-y-auto")
+                }
                 // Desktop Version: every descendant inherits this, so the
                 // per-element sizes below are dropped in that mode.
                 style={starFont ? { fontSize: `${starFont}px` } : undefined}
