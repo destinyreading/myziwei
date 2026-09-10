@@ -174,7 +174,21 @@ function ToggleButton({
 export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartData }) {
   const [hovered, setHovered] = useState<EarthlyBranch | null>(null);
   const [selected, setSelected] = useState<EarthlyBranch | null>(null);
-  const active = hovered ?? selected;
+  /**
+   * PNG export. While `exportBox` is set the chart is laid out at a FIXED size
+   * off-screen and photographed, so the picture is the same on a phone as on a
+   * 27-inch monitor. Bambang asked for the plain view in it: no palace picked,
+   * therefore none of the four long flying-Si-Hua lines and no amber highlight.
+   * The short arrows at the palace edges stay — those are always on screen and
+   * are not the result of a click.
+   */
+  const [exportBox, setExportBox] = useState<{ w: number; h: number } | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportErr, setExportErr] = useState<string | null>(null);
+  /** Finished PNG, kept on screen because iOS often refuses a direct download. */
+  const [pngUrl, setPngUrl] = useState<string | null>(null);
+
+  const active = exportBox ? null : hovered ?? selected;
 
   // Birth input + derived lunar/Ba Zi data. `info === null` means the center
   // block shows the input form; generating fills it in.
@@ -346,8 +360,16 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
    * this cannot feed back on itself; `starFont` is in the measure effect's deps
    * so the Si Hua anchors are re-measured once after the size settles.
    */
+  /**
+   * The box the desktop layout is sized against: the export size while a PNG is
+   * being made, otherwise the room the viewport leaves. Kept separate from
+   * `geom`, which is measured FROM the grid and would feed back into the size.
+   */
+  const layoutH = exportBox ? exportBox.h : availH;
+  const layoutW = exportBox ? exportBox.w : geom?.w ?? null;
+
   const starFont = useMemo(() => {
-    if (!desktop || !availH || !geom) return null;
+    if (!desktop || !layoutH || !layoutW) return null;
     // Height is usually what runs out, but not always: an iPad rotated to
     // portrait has plenty of height and a narrow palace, and at 16px five
     // pinyin names were being truncated ("Tian Liang" -> "Tian..."). So the
@@ -356,9 +378,9 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     // the height calibration produced.
     // geom.w cannot grow with the font (the grid never gets wider than the
     // viewport), so this stays free of feedback.
-    const limit = Math.min(availH / 4, geom.w / 4);
+    const limit = Math.min(layoutH / 4, layoutW / 4);
     return Math.min(16, Math.max(11, Math.round(limit / 17.5)));
-  }, [desktop, availH, geom]);
+  }, [desktop, layoutH, layoutW]);
 
   const palaceByBranch = useMemo(() => {
     const map = new Map<EarthlyBranch, Palace>();
@@ -590,6 +612,74 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     return map;
   }, [flying]);
 
+  /**
+   * Build the PNG. `html-to-image` is imported on demand so it never lands in
+   * the first-load bundle for the people who only ever look at the chart.
+   */
+  async function handleDownloadPng() {
+    if (exportBusy) return;
+    setExportBusy(true);
+    setExportErr(null);
+    setPngUrl(null);
+
+    const wasDesktop = desktop;
+    // 1600 x 1050 puts the font at its 15px ceiling and keeps the palace near
+    // the reference proportions; x2 gives a 3200 x 2100 picture.
+    const box = { w: 1600, h: 1050 };
+    try {
+      setDesktop(true);
+      setExportBox(box);
+      // Two frames for React to commit, a beat more for the measure pass that
+      // positions the Si Hua lines, and the fonts before anything is painted.
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))));
+      await new Promise((r) => setTimeout(r, 400));
+      try {
+        await (document as Document & { fonts?: { ready: Promise<unknown> } }).fonts?.ready;
+      } catch {
+        // font loading API missing — carry on, the faces are self-hosted anyway
+      }
+
+      const node = gridRef.current;
+      if (!node) throw new Error("Chart belum siap.");
+      const { toPng } = await import("html-to-image");
+      const url = await toPng(node, {
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        width: box.w,
+        height: node.scrollHeight,
+        cacheBust: true,
+        // html-to-image draws a CLONE inside an SVG <foreignObject> anchored at
+        // 0,0. The clone inherits this node's `position: fixed; left: -20000px`
+        // and lands outside the frame, which produced a blank white PNG the
+        // first time round. Overriding the clone's own position puts it back at
+        // the origin; the live node stays off-screen.
+        style: { position: "static", left: "0", top: "0", margin: "0" },
+      });
+      setPngUrl(url);
+
+      // Desktop browsers save it straight away. iOS usually ignores this and
+      // does nothing, which is why the picture is also shown below the chart.
+      try {
+        const a = document.createElement("a");
+        a.href = url;
+        const who = (isNow ? "waktu-saat-ini" : info?.name || "chart")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "");
+        a.download = `zwds-${who || "chart"}-${info?.solarDate ?? ""}.png`;
+        a.click();
+      } catch {
+        // blocked — the on-screen picture is the fallback
+      }
+    } catch (err) {
+      setExportErr(err instanceof Error ? err.message : "Gagal membuat gambar.");
+    } finally {
+      setExportBox(null);
+      setDesktop(wasDesktop);
+      setExportBusy(false);
+    }
+  }
+
   function handleSelect(branch: EarthlyBranch) {
     setSelected((prev) => (prev === branch ? null : branch));
   }
@@ -662,6 +752,20 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
           >
             Show Clash 沖
           </ToggleButton>
+          <button
+            type="button"
+            onClick={handleDownloadPng}
+            disabled={exportBusy || !info}
+            title="Simpan chart sebagai gambar PNG beresolusi tinggi (3200 x 2100)"
+            className={
+              "rounded border px-2 py-1 text-[11px] transition-colors " +
+              (exportBusy || !info
+                ? "cursor-not-allowed border-neutral-200 bg-neutral-50 text-neutral-300"
+                : "border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50")
+            }
+          >
+            {exportBusy ? "Menyiapkan…" : "Unduh PNG"}
+          </button>
           {/* Only from 1024px up. On a phone the button does not exist at all,
               so it cannot be pressed there, and it disappears again if the
               desktop window is narrowed — a layout this wide is useless in a
@@ -730,7 +834,24 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
             ? "relative w-full shrink-0 border border-neutral-300"
             : `relative w-full ${showMinor ? "h-[46rem]" : "h-[34rem]"} sm:h-auto sm:aspect-square border border-neutral-300`
         }
-        style={desktop && availH ? { minHeight: availH } : undefined}
+        style={
+          exportBox
+            ? {
+                // Rendered off-screen rather than in place: the layer would
+                // otherwise flash a 1600px chart across the viewport. It is a
+                // real layout, not a transform, so text stays sharp at any
+                // pixel ratio.
+                position: "fixed",
+                left: -20000,
+                top: 0,
+                width: exportBox.w,
+                minHeight: exportBox.h,
+                background: "#fff",
+              }
+            : desktop && layoutH
+              ? { minHeight: layoutH }
+              : undefined
+        }
       >
         <div
           className={
@@ -739,10 +860,10 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
               : "absolute inset-0 grid grid-cols-4 grid-rows-4"
           }
           style={
-            desktop && availH
+            desktop && layoutH
               ? {
-                  minHeight: availH,
-                  gridTemplateRows: `repeat(4, minmax(${Math.floor(availH / 4)}px, auto))`,
+                  minHeight: layoutH,
+                  gridTemplateRows: `repeat(4, minmax(${Math.floor(layoutH / 4)}px, auto))`,
                 }
               : undefined
           }
@@ -1553,6 +1674,50 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
           </svg>
         )}
       </div>
+
+      {/* While the picture is being built the grid itself is off-screen, so
+          without this the page would simply look empty for a second. */}
+      {exportBusy && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-white/80">
+          <div className="rounded border border-neutral-300 bg-white px-4 py-3 text-[12px] text-neutral-700 shadow-sm">
+            Menyiapkan gambar…
+          </div>
+        </div>
+      )}
+
+      {exportErr && (
+        <div className="mt-3 border border-rose-200 bg-rose-50 p-2 text-[11px] text-rose-700">
+          {exportErr}
+        </div>
+      )}
+
+      {/* The finished picture stays on the page. On a desktop the download has
+          already happened and this is just confirmation; on an iPad, where
+          WebKit routinely ignores a scripted download, this IS the way to keep
+          it — press and hold, then "Save to Photos". */}
+      {pngUrl && (
+        <div className="mt-3 border border-neutral-200 p-2">
+          <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-neutral-600">
+            <span className="font-medium text-neutral-800">Gambar siap</span>
+            <a href={pngUrl} download="zwds-chart.png" className="underline hover:text-neutral-900">
+              Unduh lagi
+            </a>
+            <span className="text-neutral-400">
+              Di iPad/iPhone: tekan-lama gambar di bawah, lalu Simpan ke Foto.
+            </span>
+            <button
+              type="button"
+              onClick={() => setPngUrl(null)}
+              className="ml-auto rounded px-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+              title="Tutup"
+            >
+              ✕
+            </button>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={pngUrl} alt="Chart ZWDS" className="w-full border border-neutral-200" />
+        </div>
+      )}
 
       {/* Ba Zi (four pillars) — toggled by "Show Ba Zi" */}
       {showBazi && info && !desktop && <BaziPanel info={info} />}
