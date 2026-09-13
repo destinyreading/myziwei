@@ -36,6 +36,12 @@ export interface BirthInfo {
   lunarMonth: number;     // 1-12 (absolute value; see isLeapMonth)
   lunarDay: number;
   isLeapMonth: boolean;
+  /**
+   * 早子時 dipakai? true = kelahiran 23:00–23:59 dihitung sebagai HARI
+   * BERIKUTNYA (pilar hari Ba Zi dan hari lunar sama-sama maju satu).
+   * false = 夜子時, harinya tetap — ini konvensi Bambang dan default kita.
+   */
+  earlyZi: boolean;
   lunarText: string;      // "一九七五年 六月初九"
   zodiac: string;         // 生肖
   bazi: BaziResult;
@@ -53,7 +59,23 @@ export function computeBirthInfo(input: BirthInput): BirthInfo {
     year: y, month: m, day: d, hour: hh, minute: mm, earlyZi: input.earlyZi,
   });
 
-  const lunar = Solar.fromYmdHms(y, m, d, hh, mm, 0).getLunar();
+  // 早子時: kalau 23:00–23:59 dihitung hari berikutnya, yang maju bukan hanya
+  // pilar hari Ba Zi (itu ditangani calculateBazi lewat `earlyZi`) tapi juga
+  // HARI LUNAR — dan hari lunar itulah yang menempatkan 紫微, jadi kalau ia
+  // tidak ikut maju, Ba Zi dan ZWDS di halaman yang sama akan memakai dua
+  // konvensi yang berbeda. Cabang jamnya tetap 子 pada kedua aturan, jadi
+  // 命宮 tidak bergeser — yang bergeser keempat belas bintang utama.
+  const rollDay = !!input.earlyZi && hh >= 23;
+  const dayFor = new Date(Date.UTC(y, m - 1, d));
+  if (rollDay) dayFor.setUTCDate(dayFor.getUTCDate() + 1);
+  const lunar = Solar.fromYmdHms(
+    dayFor.getUTCFullYear(),
+    dayFor.getUTCMonth() + 1,
+    dayFor.getUTCDate(),
+    rollDay ? 0 : hh,
+    rollDay ? 30 : mm,
+    0
+  ).getLunar();
   const rawMonth: number = lunar.getMonth(); // negative => leap month
 
   return {
@@ -67,6 +89,7 @@ export function computeBirthInfo(input: BirthInput): BirthInfo {
     lunarMonth: Math.abs(rawMonth),
     lunarDay: lunar.getDay(),
     isLeapMonth: rawMonth < 0,
+    earlyZi: !!input.earlyZi,
     // getMonthInChinese() SUDAH menyertakan awalan 闰 untuk bulan kabisat,
     // jadi menambahkannya lagi menghasilkan "闰闰九月".
     lunarText: `${lunar.getYearInChinese()}年 ${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`,

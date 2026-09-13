@@ -221,6 +221,14 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
    *  - "own"  本月法: bulan kabisat dihitung apa adanya.
    */
   const [leapRule, setLeapRule] = useState<"half" | "own">("half");
+  /**
+   * 早子時 / 夜子時 — hanya berpengaruh pada kelahiran 23:00–23:59.
+   * false (default) = 夜子時, hari ganti jam 00:00; ini konvensi Bambang.
+   * true = 早子時, 23:00 sudah dihitung hari berikutnya (yang dipakai
+   * zwds-calculator.com). Satu tombol ini menggerakkan Ba Zi DAN ZWDS
+   * sekaligus, supaya halaman yang sama tidak pernah mencampur dua konvensi.
+   */
+  const [earlyZi, setEarlyZi] = useState(false);
   const [showSanFang, setShowSanFang] = useState(false);
   // Set on mount (never during SSR) so the clock matches the visitor's.
   const [todayYear, setTodayYear] = useState<number | null>(null);
@@ -285,6 +293,32 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Mengubah 早子時/夜子時 berarti data lahirnya harus dihitung ULANG dari awal
+  // — pilar hari Ba Zi dan hari lunar dua-duanya ikut. Penjaganya
+  // `info.earlyZi === earlyZi`: tanpa itu setInfo di dalam efek yang
+  // bergantung pada `info` akan memanggil dirinya sendiri tanpa henti.
+  // Efek ini juga yang menerapkan pilihan tersebut pada chart BARU yang baru
+  // saja digenerate dari form (form selalu menghasilkan 夜子時).
+  useEffect(() => {
+    if (!info) return;
+    if (Number(info.solarTime.slice(0, 2)) !== 23) return;
+    if (info.earlyZi === earlyZi) return;
+    try {
+      setInfo(
+        computeBirthInfo({
+          name: info.name,
+          date: info.solarDate,
+          time: info.solarTime,
+          gender: info.gender,
+          earlyZi,
+        })
+      );
+    } catch {
+      // di luar jangkauan tabel Jie Qi — biarkan chart yang lama
+    }
+  }, [earlyZi, info]);
+
   const [showMisc, setShowMisc] = useState(false);
 
   // Esc leaves the full-screen layer. Bound only while it is open, so it can
@@ -857,6 +891,27 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
               }
             >
               闰 {leapRule === "half" ? "半月法" : "本月法"}
+            </button>
+          )}
+          {/* 子時 — hanya muncul untuk kelahiran 23:00–23:59, satu-satunya jam
+              yang dipengaruhi. Menggerakkan Ba Zi dan ZWDS sekaligus. */}
+          {info && Number(info.solarTime.slice(0, 2)) === 23 && (
+            <button
+              type="button"
+              onClick={() => setEarlyZi((v) => !v)}
+              title={
+                earlyZi
+                  ? "早子時: 23:00–23:59 dihitung sebagai hari berikutnya — pilar hari Ba Zi dan hari lunar sama-sama maju, jadi 紫微 bergeser. Ini yang dipakai zwds-calculator.com. Klik untuk kembali ke 夜子時."
+                  : "夜子時: hari baru ganti jam 00:00, jadi 23:00 masih hari yang sama. Klik untuk memakai 早子時."
+              }
+              className={
+                "rounded border px-2 py-1 text-[11px] transition-colors " +
+                (earlyZi
+                  ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                  : "border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50")
+              }
+            >
+              {earlyZi ? "早子時" : "夜子時"}
             </button>
           )}
           <button
@@ -1466,6 +1521,13 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     setIsNow(false);
                     // A new chart means new palaces; the old reading is stale.
                     setSelectedStar(null);
+                    // Aturan kalender kembali ke default setiap kali chart baru
+                    // dibuat dari form. Kalau dibiarkan melekat, aliran yang
+                    // dipilih untuk satu orang akan diam-diam ikut terpakai
+                    // pada orang berikutnya — dan karena tombolnya hanya muncul
+                    // di chart yang terpengaruh, tidak ada yang mengingatkan.
+                    setLeapRule("half");
+                    setEarlyZi(false);
                   }}
                 />
               ) : selectedStar ? (
@@ -1576,6 +1638,21 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     >
                       闰 → palace dihitung dari bulan {chart.meta.monthUsed ?? info.lunarMonth}{" "}
                       ({leapRule === "half" ? "半月法" : "本月法"})
+                    </div>
+                  )}
+                  {/* Sama alasannya dengan catatan 闰 di atas: sebutkan aturan
+                      yang dipakai, jangan biarkan ditebak. */}
+                  {Number(info.solarTime.slice(0, 2)) === 23 && (
+                    <div
+                      className="text-[10px] text-amber-700"
+                      title={
+                        info.earlyZi
+                          ? "早子時 — 23:00 dihitung sebagai hari berikutnya."
+                          : "夜子時 — hari baru ganti jam 00:00."
+                      }
+                    >
+                      23:00 → hari lunar {info.earlyZi ? "maju 1" : "tetap"}{" "}
+                      ({info.earlyZi ? "早子時" : "夜子時"})
                     </div>
                   )}
                   <div className="text-[10px] text-neutral-500">
