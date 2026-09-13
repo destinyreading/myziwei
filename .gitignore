@@ -47,3 +47,5 @@ reference/**/favicon.png
 # relatif yang tidak valid akan menggagalkan `next build`.
 /Claude outputs/
 *-BACKUP-*
+destinyreading/
+upload/

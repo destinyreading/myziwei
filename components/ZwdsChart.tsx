@@ -188,7 +188,23 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   /** Finished PNG, kept on screen because iOS often refuses a direct download. */
   const [pngUrl, setPngUrl] = useState<string | null>(null);
 
-  const active = exportBox ? null : hovered ?? selected;
+  /**
+   * Bintang yang sedang difokuskan (Desktop Version). Mengklik sebuah bintang
+   * membalik arah bacaan Si Hua: alih-alih menggambar empat transformasi yang
+   * KELUAR dari sebuah palace, kita menggambar setiap panah yang MASUK ke
+   * bintang ini — dari palace mana pun yang stem-nya mengirim 祿/權/科/忌 ke
+   * sana. Diverifikasi pada chart 1975: 太陰 menerima 忌 dari 酉(乙), 科 dari
+   * 未(癸), 權 dari 寅(戊) dan 子(戊), 祿 dari 亥(丁), plus 自化科 dari 辰(庚).
+   *
+   * Dua mode ini saling meniadakan, atas permintaan Bambang: selama sebuah
+   * bintang difokuskan, garis keluar milik palace tidak digambar — kalau tidak,
+   * dua kumpulan garis akan saling bertabrakan di layar yang sama.
+   */
+  const [focusStar, setFocusStar] = useState<
+    { name: string; nameZh: string; palace: string } | null
+  >(null);
+
+  const active = exportBox || focusStar ? null : hovered ?? selected;
 
   // Birth input + derived lunar/Ba Zi data. `info === null` means the center
   // block shows the input form; generating fills it in.
@@ -593,6 +609,64 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
     return map;
   }, [desktop, activeDecade, annual, liuNianStem, starIndex, palaceByBranch]);
 
+  /**
+   * Siapa saja yang mengirim Si Hua ke bintang yang sedang difokuskan.
+   * Sumbernya adalah dua belas 宮干 — keputusan Bambang: "masuk dari palace
+   * mana menuju bintang yang ditunjuk", bukan dari stem natal/大限/流年.
+   * Satu bintang bisa menerima hua yang sama dari dua palace sekaligus ketika
+   * kedua palace itu kebetulan ber-stem sama, jadi ini daftar, bukan peta.
+   */
+  const incoming = useMemo(() => {
+    if (!desktop || !focusStar) return [];
+    const out: {
+      branch: EarthlyBranch;
+      palace: string;
+      stem: HeavenlyStem;
+      hua: "lu" | "quan" | "ke" | "ji";
+      isSelf: boolean;
+    }[] = [];
+    chart.palaces.forEach((src) => {
+      const set = SI_HUA_TABLE[src.stem];
+      (["lu", "quan", "ke", "ji"] as const).forEach((k) => {
+        if (set[k] !== focusStar.name) return;
+        out.push({
+          branch: src.branch,
+          palace: src.name,
+          stem: src.stem,
+          hua: k,
+          isSelf: src.name === focusStar.palace,
+        });
+      });
+    });
+    return out;
+  }, [desktop, focusStar, chart]);
+
+  /**
+   * 借宮 — palace yang diklik diperlakukan sebagai 命宮 baru, lalu kedua belas
+   * palace diberi label relatifnya (1..12) mengikuti urutan berlawanan arah
+   * jarum jam yang sama dengan cincin natal. Dipakai untuk membaca chart dari
+   * sudut pandang orang lain: pasangan, anak, orang tua.
+   *
+   * Tidak berlaku saat yang diklik adalah 命宮 itu sendiri — hasilnya akan
+   * sama persis dengan cincin natal, jadi tidak ada yang bisa dibaca.
+   * Cincin 大限/流年/流月 sengaja TIDAK ikut di-anchor ulang.
+   */
+  const interchange = useMemo(() => {
+    if (!desktop || !activePalace) return null;
+    // chart.palaces[0] adalah 命宮; urutan array-nya sudah berlawanan arah
+    // jarum jam, sama seperti yang dipakai cincin 大限.
+    if (chart.palaces[0].branch === activePalace.branch) return null;
+    const i = BRANCH_ORDER.indexOf(activePalace.branch);
+    const map = new Map<EarthlyBranch, { n: number; name: string }>();
+    chart.palaces.forEach((_, offset) => {
+      map.set(BRANCH_ORDER[((i - offset) % 12 + 12) % 12], {
+        n: offset + 1,
+        name: chart.palaces[offset].name,
+      });
+    });
+    return { anchor: activePalace.branch, map };
+  }, [desktop, activePalace, chart]);
+
   const flying = useMemo(() => {
     if (!activePalace) return null;
     return resolveFlyingSiHua(activePalace.stem, (starName) => {
@@ -681,6 +755,8 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   }
 
   function handleSelect(branch: EarthlyBranch) {
+    // Mode palace dan mode bintang saling meniadakan.
+    setFocusStar(null);
     setSelected((prev) => (prev === branch ? null : branch));
   }
 
@@ -967,22 +1043,53 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   return (
                   <div
                     key={s.name}
-                    onClick={
-                      meaning
-                        ? () =>
-                            // No stopPropagation: the click deliberately falls
-                            // through to the palace too, so one tap gives both
-                            // the flying Si Hua lines and the star's reading.
-                            setSelectedStar((cur) =>
-                              cur && cur.name === s.name && cur.palace === p.name
-                                ? null
-                                : { name: s.name, nameZh: s.nameZh, palace: p.name, text: meaning }
-                            )
+                    onClick={(e) => {
+                      // Desktop Version: klik bintang = mode bintang. Klik
+                      // dihentikan di sini supaya palace-nya TIDAK ikut
+                      // terpilih — kalau lolos, garis keluar palace dan panah
+                      // masuk bintang akan tergambar bersamaan.
+                      // Di mode normal perilaku lama dipertahankan: satu ketukan
+                      // memberi garis Si Hua palace sekaligus penjelasan bintang.
+                      if (desktop) {
+                        e.stopPropagation();
+                        setSelected(null);
+                        setHovered(null);
+                        setFocusStar((cur) =>
+                          cur && cur.name === s.name && cur.palace === p.name
+                            ? null
+                            : { name: s.name, nameZh: s.nameZh, palace: p.name }
+                        );
+                      }
+                      setSelectedStar((cur) =>
+                        cur && cur.name === s.name && cur.palace === p.name
+                          ? null
+                          : meaning
+                            ? { name: s.name, nameZh: s.nameZh, palace: p.name, text: meaning }
+                            : null
+                      );
+                    }}
+                    title={
+                      desktop
+                        ? "Klik untuk melihat Si Hua yang masuk ke bintang ini"
+                        : meaning
+                          ? "Klik untuk penjelasannya"
+                          : undefined
+                    }
+                    style={
+                      // Bintang utama & minor dibesarkan 1,3x di Desktop
+                      // Version (permintaan Bambang): kotaknya sangat lega, dan
+                      // sejak baris grid boleh tumbuh, font besar tidak lagi
+                      // memotong apa pun — paling banter chart jadi lebih
+                      // tinggi. Misc, 博士/長生, dan footer tetap di ukuran dasar.
+                      desktop && starFont
+                        ? { fontSize: `${Math.round(starFont * 1.3)}px` }
                         : undefined
                     }
-                    title={meaning ? "Klik untuk penjelasannya" : undefined}
                     className={
-                      (meaning ? "cursor-pointer rounded-sm hover:bg-amber-100/70 " : "") +
+                      (desktop || meaning ? "cursor-pointer rounded-sm hover:bg-amber-100/70 " : "") +
+                      (focusStar && focusStar.name === s.name && focusStar.palace === p.name
+                        ? "bg-amber-200/80 "
+                        : "") +
                       // Narrow screens stack the pinyin under the Chinese name;
                       // from `sm` up there is room for one line per star.
                       // `w-full` claims a whole line inside the wrapping list,
@@ -1162,7 +1269,21 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                 }
               >
                 <div className="flex items-baseline justify-between gap-1 whitespace-nowrap">
-                  <span />
+                  {/* 借宮 — label palace ini kalau palace yang diklik dijadikan
+                      命宮. Diletakkan di ujung kiri baris yang sama dengan
+                      label cincin D/A/M (yang tetap rata kanan), jadi keduanya
+                      bersebelahan dan tidak saling menggeser. Palace jangkarnya
+                      sendiri tidak diberi label (ia otomatis "1.Self"). */}
+                  {interchange && interchange.anchor !== p.branch && interchange.map.get(p.branch) ? (
+                    <span
+                      className="shrink-0 rounded-sm bg-neutral-200 px-1 text-neutral-700"
+                      title={`借宮: kalau ${palaceByBranch.get(interchange.anchor)?.name} dijadikan 命宮, palace ini menjadi ${interchange.map.get(p.branch)!.name}`}
+                    >
+                      {interchange.map.get(p.branch)!.n}.{interchange.map.get(p.branch)!.name}
+                    </span>
+                  ) : (
+                    <span />
+                  )}
                   <span className="flex shrink-0 flex-col items-end leading-tight">
                     {monthly?.names.get(p.branch) && (
                       <span className="text-teal-600" title="流月十二宮">
@@ -1332,13 +1453,45 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     </div>
                     <button
                       type="button"
-                      onClick={() => setSelectedStar(null)}
+                      onClick={() => {
+                        setSelectedStar(null);
+                        setFocusStar(null);
+                      }}
                       title="Tutup, kembali ke data kelahiran"
                       className="shrink-0 rounded px-1 text-[12px] leading-none text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700"
                     >
                       ✕
                     </button>
                   </div>
+                  {/* Daftar pengirim, supaya panah di grid bisa dibaca sebagai
+                      kalimat dan bukan cuma ditebak dari arahnya. */}
+                  {focusStar && focusStar.name === selectedStar.name && incoming.length > 0 && (
+                    <div className="mt-2 border-t border-neutral-200 pt-1.5">
+                      <div className="text-[9px] uppercase tracking-wide text-neutral-400">
+                        Si Hua yang masuk ke bintang ini
+                      </div>
+                      <ul className="mt-1 space-y-0.5">
+                        {incoming.map((src, i) => (
+                          <li key={i} className="flex items-center gap-1.5 text-[10px] leading-snug">
+                            <span
+                              className="inline-block h-2 w-2 shrink-0 rounded-full"
+                              style={{ backgroundColor: HUA_COLOR[src.hua] }}
+                            />
+                            <span className="font-medium" style={{ color: HUA_COLOR[src.hua] }}>
+                              {HUA_LABEL[src.hua]}
+                            </span>
+                            <span className="text-neutral-400">dari</span>
+                            <span className="text-neutral-700">
+                              {src.palace} ({src.stem})
+                            </span>
+                            {src.isSelf && (
+                              <span className="text-neutral-400">— 自化</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <p className="mt-1.5 text-[11px] leading-snug text-neutral-700">
                     {selectedStar.text}
                   </p>
@@ -1603,6 +1756,60 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                   markerEnd="url(#hua-arrow-ji)"
                 />
               );
+            })()}
+
+            {/* Mode bintang: setiap panah yang MASUK ke bintang terpilih.
+                Pangkalnya di tengah palace pengirim, ujungnya di tepi terdekat
+                nama bintang supaya kepala panah tidak menutupi namanya —
+                aturan yang sama dengan garis keluar. 自化 digambar sebagai
+                cincin putus-putus, bukan panah, karena pengirim dan penerima
+                berada di kotak yang sama. */}
+            {focusStar && incoming.length > 0 && (() => {
+              const star = geom.stars[focusStar.name];
+              const cellW = geom.w / 4;
+              const cellH = geom.h / 4;
+              return incoming.map((src, idx) => {
+                const from = palaceByBranch.get(src.branch);
+                if (!from) return null;
+                const origin = {
+                  x: (from.grid.col + 0.5) * cellW,
+                  y: (from.grid.row + 0.5) * cellH,
+                };
+                if (src.isSelf) {
+                  return star ? (
+                    <ellipse
+                      key={`in-self-${idx}`}
+                      cx={star.x}
+                      cy={star.y}
+                      rx={(star.right - star.left) / 2 + 4}
+                      ry={11}
+                      fill="none"
+                      stroke={HUA_COLOR[src.hua]}
+                      strokeWidth={1.4}
+                      strokeDasharray="4 3"
+                    >
+                      <title>{`自化 ${src.hua.toUpperCase()} — ${src.palace} ${src.stem}`}</title>
+                    </ellipse>
+                  ) : null;
+                }
+                const to = star
+                  ? { x: origin.x <= star.x ? star.left - 4 : star.right + 4, y: star.y }
+                  : origin;
+                return (
+                  <line
+                    key={`in-${idx}`}
+                    x1={origin.x}
+                    y1={origin.y}
+                    x2={to.x}
+                    y2={to.y}
+                    stroke={HUA_COLOR[src.hua]}
+                    strokeWidth={1.6}
+                    markerEnd={`url(#hua-arrow-${src.hua})`}
+                  >
+                    <title>{`${src.palace} ${src.stem} → ${src.hua.toUpperCase()} → ${focusStar.nameZh} ${focusStar.name}`}</title>
+                  </line>
+                );
+              });
             })()}
 
             {activePalace && flying && (["lu", "quan", "ke", "ji"] as const).map((k) => {
