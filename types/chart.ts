@@ -75,6 +75,14 @@ export interface ZwdsChart {
     lunarMonth: number;
     lunarDay: number;
     isLeapMonth: boolean;
+    /**
+     * Bulan lunar yang BENAR-BENAR dipakai untuk menempatkan palace. Sama
+     * dengan `lunarMonth` kecuali kelahiran bulan kabisat yang memakai 半月法
+     * dan jatuh di tanggal 16+ — di situ nilainya bulan berikutnya.
+     */
+    monthUsed?: number;
+    /** Aturan bulan kabisat yang dipakai chart ini. */
+    leapRule?: "half" | "own";
     gender: "male" | "female";
     fiveElementJu: string;     // e.g. "Metal 4 (金四局)"
     fiveElementNumber: 2 | 3 | 4 | 5 | 6;

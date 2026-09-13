@@ -258,6 +258,20 @@ function ganzhiIndex(stem: number, branch: number): number {
 export interface ChartOptions {
   /** Some schools put Ren's Hua Ke on Tian Fu instead of Zuo Fu. */
   renKeTianFu?: boolean;
+  /**
+   * Aturan bulan kabisat (閏月). Menentukan nomor bulan yang dipakai untuk
+   * 命宮/身宮 dan seluruh bintang yang berbasis bulan.
+   *
+   *  - "half" (半月法, default) — tanggal 1–15 memakai nomor bulan kabisatnya
+   *    sendiri, tanggal 16 sampai akhir bulan memakai bulan BERIKUTNYA.
+   *  - "own"  (本月法) — bulan kabisat dihitung apa adanya, berapa pun
+   *    tanggalnya.
+   *
+   * Diuji terhadap zwds-calculator.com pada 9 kelahiran bulan kabisat
+   * (termasuk uji batas tanggal 15 vs 16 dan dua tanggal yang memisahkan
+   * 半月法 dari 節氣法): kalkulator itu memakai "half", dan 節氣法 tertolak.
+   */
+  leapRule?: "half" | "own";
 }
 
 export function calculateChart(info: BirthInfo, options: ChartOptions = {}): ZwdsChart {
@@ -267,8 +281,17 @@ export function calculateChart(info: BirthInfo, options: ChartOptions = {}): Zwd
     ? info.bazi.pillars.hour.dzIdx
     : mod12(Math.floor((Number(info.solarTime.slice(0, 2)) + 1) / 2));
 
-  const lunarMonth = info.lunarMonth;
   const lunarDay = info.lunarDay;
+
+  // ── 0. Bulan efektif (閏月) ──────────────────────────────────────────────
+  // Seluruh perhitungan di bawah — 命宮/身宮 DAN bintang yang berbasis bulan
+  // (左輔/右弼, 天巫, 天月, 陰煞, 解神) — memakai `lunarMonth` ini, bukan
+  // `info.lunarMonth`. Untuk kelahiran bulan biasa keduanya sama.
+  const leapRule: "half" | "own" = options.leapRule ?? "half";
+  const lunarMonth =
+    info.isLeapMonth && leapRule === "half" && lunarDay >= 16
+      ? (info.lunarMonth % 12) + 1 // 閏十二月 → bulan 1, bukan bulan 13
+      : info.lunarMonth;
 
   // ── 1. Ming Gong / Shen Gong ────────────────────────────────────────────
   // Count forward from Yin by (lunar month - 1), then back (Ming) or
@@ -490,9 +513,11 @@ export function calculateChart(info: BirthInfo, options: ChartOptions = {}): Zwd
       solarDate: info.solarDate,
       solarTime: info.solarTime,
       lunarYear: `${STEMS[yearStem]}-${BRANCHES[yearBranch]} (${info.bazi.pillars.year.tg}${info.bazi.pillars.year.dz})`,
-      lunarMonth,
+      lunarMonth: info.lunarMonth,
       lunarDay,
       isLeapMonth: info.isLeapMonth,
+      monthUsed: lunarMonth,
+      leapRule,
       gender: info.gender,
       fiveElementJu: JU_LABEL[juNumber],
       fiveElementNumber: juNumber as 2 | 3 | 4 | 5 | 6,

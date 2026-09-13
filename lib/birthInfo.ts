@@ -67,7 +67,9 @@ export function computeBirthInfo(input: BirthInput): BirthInfo {
     lunarMonth: Math.abs(rawMonth),
     lunarDay: lunar.getDay(),
     isLeapMonth: rawMonth < 0,
-    lunarText: `${lunar.getYearInChinese()}年 ${rawMonth < 0 ? "闰" : ""}${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`,
+    // getMonthInChinese() SUDAH menyertakan awalan 闰 untuk bulan kabisat,
+    // jadi menambahkannya lagi menghasilkan "闰闰九月".
+    lunarText: `${lunar.getYearInChinese()}年 ${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`,
     zodiac: lunar.getYearShengXiao(),
     bazi,
   };

@@ -213,6 +213,14 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   const [showBazi, setShowBazi] = useState(false);
   const [showMinor, setShowMinor] = useState(false);
   const [showClash, setShowClash] = useState(false);
+  /**
+   * Aturan bulan kabisat (閏月). Hanya berpengaruh — dan tombolnya hanya
+   * muncul — kalau data lahirnya memang jatuh di bulan kabisat.
+   *  - "half" 半月法 (default): tanggal 16+ dihitung bulan berikutnya. Ini yang
+   *    dipakai zwds-calculator.com, kalkulator rujukan verifikasi kita.
+   *  - "own"  本月法: bulan kabisat dihitung apa adanya.
+   */
+  const [leapRule, setLeapRule] = useState<"half" | "own">("half");
   const [showSanFang, setShowSanFang] = useState(false);
   // Set on mount (never during SSR) so the clock matches the visitor's.
   const [todayYear, setTodayYear] = useState<number | null>(null);
@@ -300,8 +308,8 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
   // Once birth data exists the grid is computed; before that we render the
   // fixture passed in as a prop so the layout is still visible.
   const chart = useMemo(
-    () => (info ? calculateChart(info) : fallbackChart),
-    [info, fallbackChart]
+    () => (info ? calculateChart(info, { leapRule }) : fallbackChart),
+    [info, fallbackChart, leapRule]
   );
 
   // ── Star anchors ────────────────────────────────────────────────────────
@@ -828,6 +836,29 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
           >
             Show Clash 沖
           </ToggleButton>
+          {/* 閏月 — hanya muncul kalau kelahirannya memang di bulan kabisat
+              (sekitar 7 dari 19 tahun). Untuk kelahiran bulan biasa tombol ini
+              tidak akan berpengaruh apa-apa, jadi ia tidak dirender sama
+              sekali daripada menawarkan pilihan yang tidak ada efeknya. */}
+          {info?.isLeapMonth && (
+            <button
+              type="button"
+              onClick={() => setLeapRule((r) => (r === "half" ? "own" : "half"))}
+              title={
+                leapRule === "half"
+                  ? "半月法: 閏月 tanggal 1–15 dihitung bulan itu sendiri, tanggal 16+ dihitung bulan berikutnya. Ini yang dipakai zwds-calculator.com. Klik untuk memakai 本月法."
+                  : "本月法: 閏月 dihitung apa adanya berapa pun tanggalnya. Klik untuk kembali ke 半月法."
+              }
+              className={
+                "rounded border px-2 py-1 text-[11px] transition-colors " +
+                (leapRule === "half"
+                  ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                  : "border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50")
+              }
+            >
+              闰 {leapRule === "half" ? "半月法" : "本月法"}
+            </button>
+          )}
           <button
             type="button"
             onClick={handleDownloadPng}
@@ -1530,6 +1561,23 @@ export default function ZwdsChart({ chart: fallbackChart }: { chart: ZwdsChartDa
                     Lunar: {info.lunarDay} / {info.lunarMonth}
                     {info.isLeapMonth && <span className="text-amber-700"> (闰)</span>} / {info.lunarYear}
                   </div>
+                  {/* Kelahiran bulan kabisat: sebutkan bulan mana yang
+                      benar-benar dipakai menempatkan palace, supaya kalau
+                      hasilnya beda dengan kalkulator lain penyebabnya langsung
+                      terlihat dan tidak perlu ditebak. */}
+                  {info.isLeapMonth && (
+                    <div
+                      className="text-[10px] text-amber-700"
+                      title={
+                        leapRule === "half"
+                          ? "半月法 — 閏月 tanggal 1–15 dihitung bulan itu sendiri, tanggal 16+ dihitung bulan berikutnya."
+                          : "本月法 — 閏月 dihitung apa adanya, berapa pun tanggalnya."
+                      }
+                    >
+                      闰 → palace dihitung dari bulan {chart.meta.monthUsed ?? info.lunarMonth}{" "}
+                      ({leapRule === "half" ? "半月法" : "本月法"})
+                    </div>
+                  )}
                   <div className="text-[10px] text-neutral-500">
                     {info.bazi.pillars.year.tg}{info.bazi.pillars.year.dz} · {info.zodiac} ·{" "}
                     {info.gender === "male" ? "Pria" : "Wanita"}
